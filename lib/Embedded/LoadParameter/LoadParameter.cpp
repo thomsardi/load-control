@@ -38,7 +38,7 @@ void LoadParameter::createDefault()
 {
     Preferences preferences;
     preferences.begin(_name.c_str());
-    preferences.putUShort("d_baud", 9600);  // default baudrate
+    preferences.putUShort("d_baud", 6);  // default baudrate
     preferences.putUShort("d_id", 254); // default id
     preferences.putUShort("d_ov_d1", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r1", 580);  // default overcoltage reconnect
@@ -227,6 +227,7 @@ void LoadParameter::writeSingle(size_t index, uint16_t value)
             break;
         }
     }
+    writeShadow();
 }
 
 /**
@@ -244,12 +245,13 @@ size_t LoadParameter::writeMultiple(size_t startIndex, size_t buffSize, uint16_t
     {
         return 0;
     }
-
+    uint16_t numberWritten = 0;
     for (size_t i = 0; i < buffSize; i++)
     {
         size_t shadowIndex = i + startIndex;
         if (buff[i] != _shadowRegisters[shadowIndex])
         {
+            numberWritten++;
             uint16_t value = buff[i];
             switch (shadowIndex)
             {
@@ -327,10 +329,8 @@ size_t LoadParameter::writeMultiple(size_t startIndex, size_t buffSize, uint16_t
             } 
         }
     }
-    
-
-
-
+    writeShadow();
+    return numberWritten;
 }
 
 /**
@@ -362,7 +362,6 @@ void LoadParameter::clear()
     preferences.begin(_name.c_str());
     preferences.clear();
     preferences.end();
-    resetWriteFlag();
     begin(_name);    
 }
 
@@ -375,6 +374,43 @@ void LoadParameter::clear()
 uint16_t LoadParameter::getBaudrate()
 {
     return _shadowRegisters[0];
+}
+
+/**
+ * get baud rate in bps value (9600 - 115200)
+ * 
+ * @return  baud rate in bps
+*/
+int LoadParameter::getBaudrateBps()
+{
+    uint16_t val = _shadowRegisters[0];
+    switch (val)
+    {
+    case 0:
+        return 9600;
+        break;
+    case 1:
+        return 14400;
+        break;
+    case 2:
+        return 19200;
+        break;
+    case 3:
+        return 28800;
+        break;
+    case 4:
+        return 38400;
+        break;
+    case 5:
+        return 57600;
+        break;
+    case 6:
+        return 115200;
+        break;    
+    default:
+        break;
+    }
+    return 0;
 }
 
 /**
@@ -598,18 +634,15 @@ uint16_t LoadParameter::getOvercurrentReconnectInterval3()
 }
 
 
-size_t LoadParameter::getAllParameter(size_t buffSize, uint16_t* buff)
+size_t LoadParameter::getAllParameter(loadParamRegister &regs)
 {
-    if (buffSize < 23)
-    {
-        return 0;
-    }
-    int sizeWritten = 0;
+    size_t paramNumber = 0;
     for (size_t i = 0; i < _shadowRegisters.size(); i++)
     {
-        buff[i] = _shadowRegisters[i];
-    }
-    return _shadowRegisters.size();
+        regs[i] = _shadowRegisters[i];
+        paramNumber++;
+    }    
+    return paramNumber;
 }
 
 
@@ -624,6 +657,10 @@ size_t LoadParameter::getAllParameter(size_t buffSize, uint16_t* buff)
  */
 void LoadParameter::setBaudrate(uint16_t value)
 {
+    if (value < 0 || value > 6)
+    {
+        return;
+    }
     Preferences preferences;
     preferences.begin(_name.c_str());
     preferences.putUShort("u_baud", value);
@@ -638,6 +675,10 @@ void LoadParameter::setBaudrate(uint16_t value)
  */
 void LoadParameter::setId(uint16_t value)
 {
+    if (value < 1 || value > 254)
+    {
+        return;
+    }
     Preferences preferences;
     preferences.begin(_name.c_str());
     preferences.putUShort("u_id", value);
@@ -1022,6 +1063,15 @@ void LoadParameter::printUser()
     ESP_LOGI(_TAG, "u_oc_rt3 : %d\n", preferences.getUShort("u_oc_rt3"));
 
     preferences.end();
+}
+
+void LoadParameter::printShadow()
+{
+    for (size_t i = 0; i < _shadowRegisters.size(); i++)
+    {
+        ESP_LOGI(_TAG, "value %d = %d\n", i, _shadowRegisters[i]);
+    }
+    
 }
 
 LoadParameter::~LoadParameter()

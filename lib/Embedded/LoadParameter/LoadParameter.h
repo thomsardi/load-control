@@ -9,7 +9,7 @@
 #include <vector>
 #include "LittleFS.h"
 
-typedef std::array<uint16_t, 23> bufferRegisters;
+typedef std::array<uint16_t, 23> loadParamRegister;
 
 struct LoadParameterData {
     // uint16_t baudrate = 9600;
@@ -42,7 +42,7 @@ class LoadParameter
 private:
     /* data */
     const char* _TAG = "load control parameter";
-    bufferRegisters _shadowRegisters = {
+    loadParamRegister _shadowRegisters = {
         9600, 254,  // baudrate, id
         600, 580, 500, 510, 1000, 4000, 4000,   // Load 1 : overvoltage disconnect, overvoltage reconnect, undervoltage disconnect, undervoltage reconnect, overcurrent disconnect, overcurrent detection time, overcurrent reconnect interval
         600, 580, 500, 510, 1000, 4000, 4000,
@@ -86,6 +86,7 @@ public:
     LoadParameter(/* args */);
     void printDefault();
     void printUser();
+    void printShadow();
 
     void begin(String name);
     void save();
@@ -97,6 +98,7 @@ public:
     size_t writeMultiple(size_t startIndex, size_t buffSize, uint16_t *buff);
 
     uint16_t getBaudrate();
+    int getBaudrateBps();
     uint16_t getId();
     uint16_t getOvervoltageDisconnect1();
     uint16_t getOvervoltageReconnect1();
@@ -122,7 +124,7 @@ public:
     uint16_t getOvercurrentDetectionTime3();
     uint16_t getOvercurrentReconnectInterval3();
 
-    size_t getAllParameter(size_t buffSize, uint16_t *buff);
+    size_t getAllParameter(loadParamRegister &regs);
 
     ~LoadParameter();
 };
