@@ -22,18 +22,23 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <ADS1X15.h>
 #include <LoadParameter.h>
 
 #include <flashz-http.hpp>
 #include <flashz.hpp>
 
 #include <ModbusServerRTU.h>
-#include <modbusdefs.h>
+#include <loaddefs.h>
 
 #include <CoilData.h>
 
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
+
+
+#define BRIDGE_VOLTAGE_DROP 14
+#define TRANSISTOR_VOTAGE_DROP 2
 
 const char* TAG = "load-control";
 
@@ -44,6 +49,8 @@ ModbusServerRTU MBserver(2000);
 LoadModbus::modbusRegister buffRegs;
 
 loadParamRegister paramRegs;
+
+LoadHandle loadHandle[3];
 
 CoilData myCoils(5);
 
@@ -68,8 +75,6 @@ struct device_pin {
   uint8_t sck = 13;
   uint8_t mosi = 4;
 } device_pin_t;
-
-uint16_t loadVoltage[3];
 
 // FC_01: act on 0x01 requests - READ_COIL
 ModbusMessage FC_01(ModbusMessage request) {
@@ -307,7 +312,7 @@ void setup() {
 
   // Serial2.begin(lp.getBaudrateBps(), SERIAL_8N1, device_pin_t.rx2, device_pin_t.tx2);
   // Wire.begin(device_pin_t.sda, device_pin_t.scl);
-  SPI.begin(device_pin_t.sck, device_pin_t.miso, device_pin_t.mosi, device_pin_t.ss);
+  // SPI.begin(device_pin_t.sck, device_pin_t.miso, device_pin_t.mosi, device_pin_t.ss);
 
   MBserver.registerWorker(lp.getId(), READ_COIL, &FC_01);
   MBserver.registerWorker(lp.getId(), WRITE_COIL, &FC_05);
@@ -317,24 +322,37 @@ void setup() {
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
   MBserver.begin(Serial2);
 
+  LoadParamsSetting s;
+
+  loadHandle[0].setParams(s);
+  loadHandle[1].setParams(s);
+  loadHandle[2].setParams(s);
+
   lastTakenTime = millis();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (millis() - lastTakenTime > 500)
-  {
-    for (size_t i = 0; i < 3; i++)
-    {
-      digitalOutput[i] = !digitalOutput[i];
-    }
-    lastTakenTime = millis();
-  }
-  for (size_t i = 0; i < 3; i++)
-  {
-    myCoils.set(i, digitalOutput[i]);
-  }
 
+  int raw[3];
+  raw[0] = analogRead(36);
+  raw[1] = analogRead(39);
+  raw[2] = analogRead(34);
+  uint16_t loadVolts = (uint16_t)(raw[0]*0.24);
+  uint16_t loadCurrent = (uint16_t)(raw[1] * 1.22);
+
+  ESP_LOGI(TAG, "load voltage = %d\n", loadVolts);
+  ESP_LOGI(TAG, "load current = %d\n", loadCurrent);
+
+  loadHandle[0].loop(loadVolts, loadCurrent);
+  loadHandle[1].loop(loadVolts, loadCurrent);
+  loadHandle[2].loop(loadVolts, loadCurrent);
+  // ESP_LOGI(TAG, "action : %d\n", loadHandle[0].getAction());
+  // ESP_LOGI(TAG, "flag : %d\n", loadHandle[0].getStatus());
+  // ESP_LOGI(TAG, "overvoltage flag : %d\n", loadHandle[0].isOvervoltage());
+  // ESP_LOGI(TAG, "undervoltage flag : %d\n", loadHandle[0].isUndervoltage());
+  // ESP_LOGI(TAG, "overcurrent flag : %d\n", loadHandle[0].isOvercurrent());
+  
   if (myCoils[3])
   {
     ESP_LOGI(TAG, "manual");
@@ -344,11 +362,12 @@ void loop() {
   }
   else
   {
-    if (loadVoltage[0] < lp.getOvervoltageDisconnect1() && loadVoltage[0] > lp.getUndervoltageDisconnect1())
-    {
-      digitalWrite(device_pin_t.do1, HIGH);
-      myCoils.set(0, 1);
-    }
+    digitalWrite(device_pin_t.do1, loadHandle[0].getAction());
+    myCoils.set(0, loadHandle[0].getAction());
+    digitalWrite(device_pin_t.do2, loadHandle[1].getAction());
+    myCoils.set(1, loadHandle[1].getAction());
+    digitalWrite(device_pin_t.do3, loadHandle[2].getAction());
+    myCoils.set(2, loadHandle[2].getAction());
   }
 
   if (myCoils[4])
@@ -356,5 +375,5 @@ void loop() {
     ESP_LOGI(TAG, "restart");
   }
 
-  delay(10);
+  delay(100);
 }
