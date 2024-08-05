@@ -12,11 +12,11 @@ LoadHandle::LoadHandle()
  */
 void LoadHandle::setParams(const LoadParamsSetting &load_params_t)
 {
-    _loadOvervoltageDisconnectVoltage = load_params_t.loadOverVoltageDisconnectVoltage;
-    _loadOvervoltageReconnectVoltage = load_params_t.loadOvervoltageReconnectVoltage;
-    _loadUndervoltageDisconnectVoltage = load_params_t.loadUndervoltageDisconnectVoltage;
-    _loadUndervoltageReconnectVoltage = load_params_t.loadUndervoltageReconnectVoltage;
-    _loadOvercurrent = load_params_t.loadOvercurrent;
+    _loadOvervoltageDisconnect = load_params_t.loadOverVoltageDisconnect;
+    _loadOvervoltageReconnect = load_params_t.loadOvervoltageReconnect;
+    _loadUndervoltageDisconnect = load_params_t.loadUndervoltageDisconnect;
+    _loadUndervoltageReconnect = load_params_t.loadUndervoltageReconnect;
+    _loadOvercurrentDisconnect = load_params_t.loadOvercurrentDisconnect;
     _loadOcDetectionTime = load_params_t.loadOcDetectionTime;
     _loadOcReconnectTime = load_params_t.loadOcReconnectTime;
     _isActiveLow = load_params_t.activeLow;
@@ -40,27 +40,27 @@ void LoadHandle::loop(uint16_t loadVoltage, uint16_t loadCurrent)
         _state = _isActiveLow;
     }
 
-    if (loadVoltage > _loadOvervoltageDisconnectVoltage)
+    if (loadVoltage > _loadOvervoltageDisconnect)
     {
         _bitStatus.flag.overvoltage = 1;
     }
 
-    if (loadVoltage < _loadOvervoltageReconnectVoltage)
+    if (loadVoltage < _loadOvervoltageReconnect)
     {
         _bitStatus.flag.overvoltage = 0;
     }
 
-    if (loadVoltage < _loadUndervoltageDisconnectVoltage)
+    if (loadVoltage < _loadUndervoltageDisconnect)
     {
         _bitStatus.flag.undervoltage = 1;
     }
 
-    if (loadVoltage > _loadUndervoltageReconnectVoltage)
+    if (loadVoltage > _loadUndervoltageReconnect)
     {
         _bitStatus.flag.undervoltage = 0;
     }
 
-    if (loadCurrent > _loadOvercurrent && !_bitStatus.flag.overcurrent)
+    if (loadCurrent > _loadOvercurrentDisconnect && !_bitStatus.flag.overcurrent)
     {
         if (millis() - _lastOcCheck > _loadOcDetectionTime)
         {
@@ -123,6 +123,26 @@ bool LoadHandle::isUndervoltage()
 bool LoadHandle::isOvercurrent()
 {
     return _bitStatus.flag.overcurrent;
+}
+
+/**
+ * convert adc raw value to current
+ * 
+ * @param[in] raw raw value of adc
+ * @param[in] gain  gain in mV/A
+ * @param[in] maxRaw    maximum value of adc
+ * @param[in] minRaw    minimum value of adc
+ * @param[in] midPoint    middlepoint value of adc
+ * 
+ * @return  current value in float
+ */
+float LoadHandle::toCurrent(int raw, int gain, int maxRaw, int minRaw, int midPoint)
+{
+    float resolution = 3300; 
+    resolution /= (maxRaw - minRaw); // for 1 adc value equal to how many millivolt
+    float milliVolt = (raw - minRaw - midPoint) * resolution; // multiply the adc value with resolution to get actual millivolt
+    float current = milliVolt / gain;   // multiply the millivolt with gain to get current
+    return current;
 }
 
 /**

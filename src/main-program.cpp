@@ -39,6 +39,7 @@
 
 #define BRIDGE_VOLTAGE_DROP 14
 #define TRANSISTOR_VOTAGE_DROP 2
+#define CURRENT_GAIN  66  //CC6904SO-20A gain is 63 - 69 mV/A, typical 66 mV/A
 
 const char* TAG = "load-control";
 
@@ -47,6 +48,8 @@ LoadParameter lp;
 ModbusServerRTU MBserver(2000);
 
 LoadModbus::modbusRegister buffRegs;
+LoadModbus::CoilStatus coilStatus;
+LoadModbus::SystemStatus systemStatus;
 
 loadParamRegister paramRegs;
 
@@ -290,6 +293,8 @@ ModbusMessage FC10(ModbusMessage request) {
   return response;
 }
 
+
+
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -302,10 +307,6 @@ void setup() {
   lp.begin("load1");
   ESP_LOGI(TAG, "baudrate bps = %d\n", lp.getBaudrateBps());
   ESP_LOGI(TAG, "written = %d\n", lp.getAllParameter(paramRegs));
-  for (size_t i = 0; i < paramRegs.size(); i++)
-  {
-    ESP_LOGI(TAG, "value %d=%d\n", i, paramRegs[i]);
-  }
 
   RTUutils::prepareHardwareSerial(Serial2);
   Serial2.begin(lp.getBaudrateBps());
@@ -322,10 +323,38 @@ void setup() {
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
   MBserver.begin(Serial2);
 
+  /**
+   * load paramater from flash memory and pass it into loadHandle
+   */
   LoadParamsSetting s;
-
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect1();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect1();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect1();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect1();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect1();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime1();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval1();
+  s.activeLow = lp.getOutputMode1();
   loadHandle[0].setParams(s);
+
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect2();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect2();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect2();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect2();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect2();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime2();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval2();
+  s.activeLow = lp.getOutputMode2();
   loadHandle[1].setParams(s);
+
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect3();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect3();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect3();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect3();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect3();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime3();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval3();
+  s.activeLow = lp.getOutputMode3();
   loadHandle[2].setParams(s);
 
   lastTakenTime = millis();
@@ -333,20 +362,32 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-
+  systemStatus.flag.run = 1;
   int raw[3];
-  raw[0] = analogRead(36);
-  raw[1] = analogRead(39);
-  raw[2] = analogRead(34);
-  uint16_t loadVolts = (uint16_t)(raw[0]*0.24);
-  uint16_t loadCurrent = (uint16_t)(raw[1] * 1.22);
+  raw[0] = analogRead(36); // current load 1
+  raw[1] = analogRead(39); // current load 2
+  raw[2] = analogRead(34); // current load 3
+  float current[3];
+  uint16_t convertedCurrent[3];
+  for (size_t i = 0; i < 3; i++)
+  {
+    current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
+    convertedCurrent[i] = abs(current[i]);
+  }
 
-  ESP_LOGI(TAG, "load voltage = %d\n", loadVolts);
-  ESP_LOGI(TAG, "load current = %d\n", loadCurrent);
+  uint16_t loadVolts = 550;
 
-  loadHandle[0].loop(loadVolts, loadCurrent);
-  loadHandle[1].loop(loadVolts, loadCurrent);
-  loadHandle[2].loop(loadVolts, loadCurrent);
+  loadHandle[0].loop(loadVolts, convertedCurrent[0]);
+  loadHandle[1].loop(loadVolts, convertedCurrent[1]);
+  loadHandle[2].loop(loadVolts, convertedCurrent[2]);
+
+  for (size_t i = 0; i < 3; i++)
+  {
+    ESP_LOGI(TAG, "load voltage %d = %d\n", i+1, loadVolts);
+    ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, (int)current[i]);
+    ESP_LOGI(TAG, "unsigned load current %d = %d\n", i+1, convertedCurrent[i]);
+  }
+  
   // ESP_LOGI(TAG, "action : %d\n", loadHandle[0].getAction());
   // ESP_LOGI(TAG, "flag : %d\n", loadHandle[0].getStatus());
   // ESP_LOGI(TAG, "overvoltage flag : %d\n", loadHandle[0].isOvervoltage());
@@ -359,9 +400,11 @@ void loop() {
     digitalWrite(device_pin_t.do1, myCoils[0]);
     digitalWrite(device_pin_t.do2, myCoils[1]);
     digitalWrite(device_pin_t.do3, myCoils[2]);
+    systemStatus.flag.mode = 1;
   }
   else
   {
+    systemStatus.flag.mode = 0;
     digitalWrite(device_pin_t.do1, loadHandle[0].getAction());
     myCoils.set(0, loadHandle[0].getAction());
     digitalWrite(device_pin_t.do2, loadHandle[1].getAction());
@@ -369,6 +412,23 @@ void loop() {
     digitalWrite(device_pin_t.do3, loadHandle[2].getAction());
     myCoils.set(2, loadHandle[2].getAction());
   }
+
+  coilStatus.flag.output1 = myCoils[0];
+  coilStatus.flag.output2 = myCoils[1];
+  coilStatus.flag.output2 = myCoils[2];
+
+  buffRegs.assignLoadVoltage1(530);
+  buffRegs.assignLoadVoltage2(540);
+  buffRegs.assignLoadVoltage3(550);
+  buffRegs.assignSystemVoltage(580);
+  buffRegs.assignLoadCurrent1(current[0]);
+  buffRegs.assignLoadCurrent2(current[1]);
+  buffRegs.assignLoadCurrent3(current[2]);
+  buffRegs.assignFlag1(loadHandle[0].getStatus());
+  buffRegs.assignFlag2(loadHandle[1].getStatus());
+  buffRegs.assignFlag3(loadHandle[2].getStatus());
+  buffRegs.assignCoilStatus(coilStatus.value);
+  buffRegs.assignSystemStatus(systemStatus.value);
 
   if (myCoils[4])
   {

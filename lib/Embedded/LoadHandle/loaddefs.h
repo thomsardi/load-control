@@ -5,10 +5,29 @@
 #include "array"
 
 namespace LoadModbus {
+    union SystemStatus {
+        struct bitField {
+            uint16_t run : 1;
+            uint16_t mode : 1;
+            uint16_t : 14;
+        } flag;
+        uint16_t value;
+    };
+
+    union CoilStatus {
+        struct bitField {
+            uint16_t output1 : 1;
+            uint16_t output2 : 1;
+            uint16_t output3 : 1;
+            uint16_t : 13;
+        } flag;
+        uint16_t value;
+    };
+    
     struct modbusRegister
     {
-        std::array<uint16_t, 10> inputRegister;
-        std::array<uint16_t, 23> holdingRegister;
+        std::array<uint16_t, 15> inputRegister;
+        std::array<uint16_t, 26> holdingRegister;
 
         modbusRegister()
         {
@@ -36,37 +55,50 @@ namespace LoadModbus {
             inputRegister[3] = value;
         }
 
-        void assignLoadCurrent1(uint16_t value)
+        void assignLoadCurrent1(int value)
         {
-            inputRegister[4] = value;
+            inputRegister[4] = value >> 16;
+            inputRegister[5] = value & 0xFFFF;
         }
 
-        void assignLoadCurrent2(uint16_t value)
+        void assignLoadCurrent2(int value)
         {
-            inputRegister[5] = value;
+            inputRegister[6] = value >> 16;
+            inputRegister[7] = value & 0xFFFF;
         }
 
-        void assignLoadCurrent3(uint16_t value)
+        void assignLoadCurrent3(int value)
         {
-            inputRegister[6] = value;
+            inputRegister[8] = value >> 16;
+            inputRegister[9] = value & 0xFFFF;
         }
 
         void assignFlag1(uint16_t value)
         {
-            inputRegister[7] = value;
+            inputRegister[10] = value;
         }
 
         void assignFlag2(uint16_t value)
         {
-            inputRegister[8] = value;
+            inputRegister[11] = value;
         }
 
         void assignFlag3(uint16_t value)
         {
-            inputRegister[9] = value;
+            inputRegister[12] = value;
         }
 
-        size_t assignHoldingRegister(std::array<uint16_t, 23> &regs)
+        void assignCoilStatus(uint16_t value)
+        {
+            inputRegister[13] = value;
+        }
+
+        void assignSystemStatus(uint16_t value)
+        {
+            inputRegister[14] = value;
+        }
+
+        size_t assignHoldingRegister(std::array<uint16_t, 26> &regs)
         {
             size_t regsNumber = 0;
             for (size_t i = 0; i < holdingRegister.size(); i++)
@@ -89,11 +121,11 @@ namespace LoadModbus {
  * activeLow, true to set it as sink (provide return / ground path), false to set it as source (provide power path)
  */
 struct LoadParamsSetting {
-    uint16_t loadOverVoltageDisconnectVoltage = 600; // voltage in 0.1V
-    uint16_t loadOvervoltageReconnectVoltage = 580;
-    uint16_t loadUndervoltageDisconnectVoltage = 500;
-    uint16_t loadUndervoltageReconnectVoltage = 510;
-    uint16_t loadOvercurrent = 1000;    // current int 0.01A
+    uint16_t loadOverVoltageDisconnect = 600; // voltage in 0.1V
+    uint16_t loadOvervoltageReconnect = 580;
+    uint16_t loadUndervoltageDisconnect = 500;
+    uint16_t loadUndervoltageReconnect = 510;
+    uint16_t loadOvercurrentDisconnect = 1000;    // current int 0.01A
     uint16_t loadOcDetectionTime = 4000;    // wait time in miliseconds (ms)
     uint16_t loadOcReconnectTime = 4000;    // reconnect time in miliseconds (ms)
     bool activeLow = false; //set to true if sink (low side switch), set false if source (high side switch)
@@ -122,11 +154,11 @@ union bitField {
 
 class LoadHandle {
     private :
-        uint16_t _loadOvervoltageDisconnectVoltage;
-        uint16_t _loadOvervoltageReconnectVoltage;
-        uint16_t _loadUndervoltageDisconnectVoltage;
-        uint16_t _loadUndervoltageReconnectVoltage;
-        uint16_t _loadOvercurrent;
+        uint16_t _loadOvervoltageDisconnect;
+        uint16_t _loadOvervoltageReconnect;
+        uint16_t _loadUndervoltageDisconnect;
+        uint16_t _loadUndervoltageReconnect;
+        uint16_t _loadOvercurrentDisconnect;
         uint16_t _loadOcDetectionTime;
         uint16_t _loadOcReconnectTime;
         bitField _bitStatus;
@@ -143,6 +175,7 @@ class LoadHandle {
         bool isOvervoltage();
         bool isUndervoltage();
         bool isOvercurrent();
+        float toCurrent(int raw, int gain = 66, int maxRaw = 4096, int minRaw = 0, int midPoint = 2048);
         uint16_t getStatus();
         ~LoadHandle();
 };
