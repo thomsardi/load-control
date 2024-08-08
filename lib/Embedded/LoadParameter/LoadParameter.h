@@ -9,7 +9,7 @@
 #include <vector>
 #include "LittleFS.h"
 
-typedef std::array<uint16_t, 26> loadParamRegister;
+typedef std::array<uint16_t, 35> loadParamRegister;
 
 struct LoadParameterData {
     // uint16_t baudrate = 9600;
@@ -43,10 +43,10 @@ private:
     /* data */
     const char* _TAG = "load control parameter";
     loadParamRegister _shadowRegisters = {
-        9600, 254,  // baudrate, id
-        600, 580, 500, 510, 1000, 500, 4000, 0,   // Load 1 : overvoltage disconnect, overvoltage reconnect, undervoltage disconnect, undervoltage reconnect, overcurrent disconnect, overcurrent detection time, overcurrent reconnect interval, output mode
-        600, 580, 500, 510, 1000, 500, 4000, 0,
-        600, 580, 500, 510, 1000, 500, 4000, 0
+        6, 254,  // baudrate, id
+        600, 580, 500, 510, 1000, 500, 4000, 2000, 20, 4000, 0,   // Load 1 : overvoltage disconnect, overvoltage reconnect, undervoltage disconnect, undervoltage reconnect, overcurrent disconnect, overcurrent detection time, overcurrent reconnect interval, short disconnect, short detection time, shoort reconnect, output mode
+        600, 580, 500, 510, 1000, 500, 4000, 2000, 20, 4000, 0,
+        600, 580, 500, 510, 1000, 500, 4000, 2000, 20, 4000, 0
     };
     String _name;
     void checkUpdatedValue(size_t buffSize, uint16_t* inputParam, uint16_t* deviceParam);
@@ -65,6 +65,9 @@ private:
     void setOvercurrentDisconnect1(uint16_t value);
     void setOvercurrentDetectionTime1(uint16_t value);
     void setOvercurrentReconnectInterval1(uint16_t value);
+    void setShortCircuitDisconnect1(uint16_t value);
+    void setShortCircuitDetectionTime1(uint16_t value);
+    void setShortCircuitReconnectInterval1(uint16_t value);
     void setOutputMode1(uint16_t value);
 
     void setOvervoltageDisconnect2(uint16_t value);
@@ -74,6 +77,9 @@ private:
     void setOvercurrentDisconnect2(uint16_t value);
     void setOvercurrentDetectionTime2(uint16_t value);
     void setOvercurrentReconnectInterval2(uint16_t value);
+    void setShortCircuitDisconnect2(uint16_t value);
+    void setShortCircuitDetectionTime2(uint16_t value);
+    void setShortCircuitReconnectInterval2(uint16_t value);
     void setOutputMode2(uint16_t value);
 
     void setOvervoltageDisconnect3(uint16_t value);
@@ -83,6 +89,9 @@ private:
     void setOvercurrentDisconnect3(uint16_t value);
     void setOvercurrentDetectionTime3(uint16_t value);
     void setOvercurrentReconnectInterval3(uint16_t value);
+    void setShortCircuitDisconnect3(uint16_t value);
+    void setShortCircuitDetectionTime3(uint16_t value);
+    void setShortCircuitReconnectInterval3(uint16_t value);
     void setOutputMode3(uint16_t value);
 
 public:
@@ -110,6 +119,9 @@ public:
     uint16_t getOvercurrentDisconnect1();
     uint16_t getOvercurrentDetectionTime1();
     uint16_t getOvercurrentReconnectInterval1();
+    uint16_t getShortCircuitDisconnect1();
+    uint16_t getShortCircuitDetectionTime1();
+    uint16_t getShortCircuitReconnectInterval1();
     uint16_t getOutputMode1();
 
     uint16_t getOvervoltageDisconnect2();
@@ -119,6 +131,9 @@ public:
     uint16_t getOvercurrentDisconnect2();
     uint16_t getOvercurrentDetectionTime2();
     uint16_t getOvercurrentReconnectInterval2();
+    uint16_t getShortCircuitDisconnect2();
+    uint16_t getShortCircuitDetectionTime2();
+    uint16_t getShortCircuitReconnectInterval2();
     uint16_t getOutputMode2();
 
     uint16_t getOvervoltageDisconnect3();
@@ -128,6 +143,9 @@ public:
     uint16_t getOvercurrentDisconnect3();
     uint16_t getOvercurrentDetectionTime3();
     uint16_t getOvercurrentReconnectInterval3();
+    uint16_t getShortCircuitDisconnect3();
+    uint16_t getShortCircuitDetectionTime3();
+    uint16_t getShortCircuitReconnectInterval3();
     uint16_t getOutputMode3();
 
     size_t getAllParameter(loadParamRegister &regs);

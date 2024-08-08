@@ -2,7 +2,10 @@
 
 LoadHandle::LoadHandle()
 {
-    
+    _lastOcCheck = millis();
+    _lastOcReconnect = millis();
+    _lastScCheck = millis();
+    _lastScReconnect = millis();
 }
 
 /**
@@ -19,6 +22,9 @@ void LoadHandle::setParams(const LoadParamsSetting &load_params_t)
     _loadOvercurrentDisconnect = load_params_t.loadOvercurrentDisconnect;
     _loadOcDetectionTime = load_params_t.loadOcDetectionTime;
     _loadOcReconnectTime = load_params_t.loadOcReconnectTime;
+    _loadShortCircuitDisconnect = load_params_t.loadShortCircuitDisconnect;
+    _loadShortCircuitDetectionTime = load_params_t.loadShortCircuitDetectionTime;
+    _loadShortCircuitReconnectTime = load_params_t.loadShortCircuitReconnectTime;
     _isActiveLow = load_params_t.activeLow;
 }
 
@@ -31,7 +37,7 @@ void LoadHandle::setParams(const LoadParamsSetting &load_params_t)
  */
 void LoadHandle::loop(uint16_t loadVoltage, uint16_t loadCurrent)
 {
-    if (!_bitStatus.flag.overvoltage && !_bitStatus.flag.undervoltage && !_bitStatus.flag.overcurrent)
+    if (!_bitStatus.flag.overvoltage && !_bitStatus.flag.undervoltage && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
     {
         _state = !_isActiveLow;
     }
@@ -60,11 +66,46 @@ void LoadHandle::loop(uint16_t loadVoltage, uint16_t loadCurrent)
         _bitStatus.flag.undervoltage = 0;
     }
 
-    if (loadCurrent > _loadOvercurrentDisconnect && !_bitStatus.flag.overcurrent)
+    /**
+     * Short circuit detection
+     */
+    if (loadCurrent > _loadShortCircuitDisconnect && !_bitStatus.flag.shortCircuit)
+    {
+        if (millis() - _lastScCheck > _loadShortCircuitDetectionTime)
+        {
+            _bitStatus.flag.shortCircuit = 1;
+            _bitStatus.flag.overcurrent = 0;
+            _lastScCheck = millis();
+        }
+    }
+    else
+    {
+        _lastScCheck = millis();
+    }
+
+    if (_bitStatus.flag.shortCircuit)
+    {
+        if (millis() - _lastScReconnect > _loadShortCircuitReconnectTime)
+        {
+            _bitStatus.flag.shortCircuit = 0;
+            _bitStatus.flag.overcurrent = 0;
+            _lastScReconnect = millis();
+        }
+    }
+    else
+    {
+        _lastScReconnect = millis();
+    }
+
+    /**
+     * Overcurrent detection
+     */
+    if (loadCurrent > _loadOvercurrentDisconnect && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
     {
         if (millis() - _lastOcCheck > _loadOcDetectionTime)
         {
             _bitStatus.flag.overcurrent = 1;
+            _lastOcCheck = millis();
         }
     }
     else
@@ -72,11 +113,12 @@ void LoadHandle::loop(uint16_t loadVoltage, uint16_t loadCurrent)
         _lastOcCheck = millis();
     }
 
-    if (_bitStatus.flag.overcurrent)
+    if (_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
     {
         if (millis() - _lastOcReconnect > _loadOcReconnectTime)
         {
             _bitStatus.flag.overcurrent = 0;
+            _lastOcReconnect = millis();
         }
     }
     else
@@ -123,6 +165,16 @@ bool LoadHandle::isUndervoltage()
 bool LoadHandle::isOvercurrent()
 {
     return _bitStatus.flag.overcurrent;
+}
+
+/**
+ * Get short circuit status
+ * 
+ * @return short circuit flag bit
+ */
+bool LoadHandle::isShortCircuit()
+{
+    return _bitStatus.flag.shortCircuit;
 }
 
 /**

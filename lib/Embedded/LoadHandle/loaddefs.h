@@ -14,12 +14,18 @@ namespace LoadModbus {
         uint16_t value;
     };
 
-    union CoilStatus {
+    union FeedbackStatus {
         struct bitField {
-            uint16_t output1 : 1;
-            uint16_t output2 : 1;
-            uint16_t output3 : 1;
-            uint16_t : 13;
+            uint16_t mcb1 : 1;
+            uint16_t mcb2 : 1;
+            uint16_t mcb3 : 1;
+            uint16_t relayOn1Failed: 1;
+            uint16_t relayOff1Failed: 1;
+            uint16_t relayOn2Failed: 1;
+            uint16_t relayOff2Failed: 1;
+            uint16_t relayOn3Failed: 1;
+            uint16_t relayOff3Failed: 1;
+            uint16_t :7;
         } flag;
         uint16_t value;
     };
@@ -27,7 +33,7 @@ namespace LoadModbus {
     struct modbusRegister
     {
         std::array<uint16_t, 15> inputRegister;
-        std::array<uint16_t, 26> holdingRegister;
+        std::array<uint16_t, 35> holdingRegister;
 
         modbusRegister()
         {
@@ -88,7 +94,7 @@ namespace LoadModbus {
             inputRegister[12] = value;
         }
 
-        void assignCoilStatus(uint16_t value)
+        void assignFeedbackStatus(uint16_t value)
         {
             inputRegister[13] = value;
         }
@@ -98,7 +104,7 @@ namespace LoadModbus {
             inputRegister[14] = value;
         }
 
-        size_t assignHoldingRegister(std::array<uint16_t, 26> &regs)
+        size_t assignHoldingRegister(std::array<uint16_t, 35> &regs)
         {
             size_t regsNumber = 0;
             for (size_t i = 0; i < holdingRegister.size(); i++)
@@ -125,9 +131,12 @@ struct LoadParamsSetting {
     uint16_t loadOvervoltageReconnect = 580;
     uint16_t loadUndervoltageDisconnect = 500;
     uint16_t loadUndervoltageReconnect = 510;
-    uint16_t loadOvercurrentDisconnect = 1000;    // current int 0.01A
-    uint16_t loadOcDetectionTime = 4000;    // wait time in miliseconds (ms)
+    uint16_t loadOvercurrentDisconnect = 1000;    // overcurrent in 0.01A
+    uint16_t loadOcDetectionTime = 2000;    // wait time in miliseconds (ms)
     uint16_t loadOcReconnectTime = 4000;    // reconnect time in miliseconds (ms)
+    uint16_t loadShortCircuitDisconnect = 2000;    // short circuit current in 0.01A
+    uint16_t loadShortCircuitDetectionTime = 20;    // wait time in miliseconds (ms)
+    uint16_t loadShortCircuitReconnectTime = 4000;    // reconnect time in miliseconds (ms)
     bool activeLow = false; //set to true if sink (low side switch), set false if source (high side switch)
 };
 
@@ -147,13 +156,16 @@ union bitField {
         uint16_t overvoltage : 1;
         uint16_t undervoltage : 1;
         uint16_t overcurrent : 1;
-        uint16_t : 13;
+        uint16_t shortCircuit : 1;
+        uint16_t : 12;
     } flag;
     uint16_t value;
 };
 
 class LoadHandle {
     private :
+        const char* _TAG = "load-handle";
+        
         uint16_t _loadOvervoltageDisconnect;
         uint16_t _loadOvervoltageReconnect;
         uint16_t _loadUndervoltageDisconnect;
@@ -161,9 +173,14 @@ class LoadHandle {
         uint16_t _loadOvercurrentDisconnect;
         uint16_t _loadOcDetectionTime;
         uint16_t _loadOcReconnectTime;
+        uint16_t _loadShortCircuitDisconnect;
+        uint16_t _loadShortCircuitDetectionTime;
+        uint16_t _loadShortCircuitReconnectTime;
         bitField _bitStatus;
         unsigned long _lastOcCheck;
         unsigned long _lastOcReconnect;
+        unsigned long _lastScCheck;
+        unsigned long _lastScReconnect;
         bool _isActiveLow;
         bool _state;
 
@@ -175,9 +192,30 @@ class LoadHandle {
         bool isOvervoltage();
         bool isUndervoltage();
         bool isOvercurrent();
+        bool isShortCircuit();
         float toCurrent(int raw, int gain = 66, int maxRaw = 4096, int minRaw = 0, int midPoint = 2048);
         uint16_t getStatus();
         ~LoadHandle();
+};
+
+class PulseOutput {
+    private :
+        const char* _TAG = "pulse-output";
+        uint8_t _pin;
+        int _pulseOnDuration = 50;
+        int _pulseOffDuration = 50;
+        unsigned long _lastPulseOnCheck;
+        unsigned long _lastPulseOffCheck;
+        bool _activeLow = false;
+        bool _isSet = false;
+    public :
+        PulseOutput();
+        void setup(uint8_t pin, int pulseOnDuration = 50, int pulseOffDuration = 50, bool activeLow = false);
+        void set();
+        void changePulseOnDuration(int duration);
+        void changePulseOffDuration(int duration);
+        void changeActiveState(bool activeLow = false);
+        void tick();
 };
 
 #endif

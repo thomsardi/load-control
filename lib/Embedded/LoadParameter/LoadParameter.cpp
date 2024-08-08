@@ -47,7 +47,11 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_oc_d1", 1000); // default overcurrent disconnect
     preferences.putUShort("d_oc_dt1", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt1", 4000);    // default overcurrent reconnect time
+    preferences.putUShort("d_sc_d1", 2000);    // default short circuit disconnect
+    preferences.putUShort("d_sc_dt1", 20);    // default short circuit detection time
+    preferences.putUShort("d_sc_rt1", 4000);    // default short circuit reconnect time
     preferences.putUShort("d_om_1", 0);    // default output mode
+    
     preferences.putUShort("d_ov_d2", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r2", 580);  // default overcoltage reconnect
     preferences.putUShort("d_uv_d2", 500);  // default undervoltage disconnect
@@ -55,7 +59,11 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_oc_d2", 1000); // default overcurrent disconnect
     preferences.putUShort("d_oc_dt2", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt2", 4000);    // default overcurrent reconnect time
+    preferences.putUShort("d_sc_d2", 2000);    // default short circuit disconnect
+    preferences.putUShort("d_sc_dt2", 20);    // default short circuit detection time
+    preferences.putUShort("d_sc_rt2", 4000);    // default short circuit reconnect time
     preferences.putUShort("d_om_2", 0);    // default output mode
+    
     preferences.putUShort("d_ov_d3", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r3", 580);  // default overcoltage reconnect
     preferences.putUShort("d_uv_d3", 500);  // default undervoltage disconnect
@@ -63,6 +71,9 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_oc_d3", 1000); // default overcurrent disconnect
     preferences.putUShort("d_oc_dt3", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt3", 4000);    // default overcurrent reconnect time
+    preferences.putUShort("d_sc_d3", 2000);    // default short circuit disconnect
+    preferences.putUShort("d_sc_dt3", 20);    // default short circuit detection time
+    preferences.putUShort("d_sc_rt3", 4000);    // default short circuit reconnect time
     preferences.putUShort("d_om_3", 0);    // default output mode
     preferences.putBool("init_flg", true);
     preferences.putBool("rst_flg", false);
@@ -83,8 +94,11 @@ void LoadParameter::copy()
     preferences.putUShort("u_uv_d1", preferences.getUShort("d_uv_d1"));  
     preferences.putUShort("u_uv_r1", preferences.getUShort("d_uv_r1"));  
     preferences.putUShort("u_oc_d1", preferences.getUShort("d_oc_d1")); 
-    preferences.putUShort("u_oc_dt1", preferences.getUShort("d_oc_dt1"));    
+    preferences.putUShort("u_oc_dt1", preferences.getUShort("d_oc_dt1"));
     preferences.putUShort("u_oc_rt1", preferences.getUShort("d_oc_rt1"));    
+    preferences.putUShort("u_sc_d1", preferences.getUShort("d_sc_d1")); 
+    preferences.putUShort("u_sc_dt1", preferences.getUShort("d_sc_dt1"));
+    preferences.putUShort("u_sc_rt1", preferences.getUShort("d_sc_rt1"));    
     preferences.putUShort("u_om_1", preferences.getUShort("d_om_1"));    
 
     preferences.putUShort("u_ov_d2", preferences.getUShort("d_ov_d2"));  
@@ -94,6 +108,9 @@ void LoadParameter::copy()
     preferences.putUShort("u_oc_d2", preferences.getUShort("d_oc_d2")); 
     preferences.putUShort("u_oc_dt2", preferences.getUShort("d_oc_dt2"));    
     preferences.putUShort("u_oc_rt2", preferences.getUShort("d_oc_rt2"));    
+    preferences.putUShort("u_sc_d2", preferences.getUShort("d_sc_d2")); 
+    preferences.putUShort("u_sc_dt2", preferences.getUShort("d_sc_dt2"));    
+    preferences.putUShort("u_sc_rt2", preferences.getUShort("d_sc_rt2"));    
     preferences.putUShort("u_om_2", preferences.getUShort("d_om_2"));
 
     preferences.putUShort("u_ov_d3", preferences.getUShort("d_ov_d3"));  
@@ -103,6 +120,9 @@ void LoadParameter::copy()
     preferences.putUShort("u_oc_d3", preferences.getUShort("d_oc_d3")); 
     preferences.putUShort("u_oc_dt3", preferences.getUShort("d_oc_dt3"));    
     preferences.putUShort("u_oc_rt3", preferences.getUShort("d_oc_rt3"));   
+    preferences.putUShort("u_sc_d3", preferences.getUShort("d_sc_d3")); 
+    preferences.putUShort("u_sc_dt3", preferences.getUShort("d_sc_dt3"));    
+    preferences.putUShort("u_sc_rt3", preferences.getUShort("d_sc_rt3"));   
     preferences.putUShort("u_om_3", preferences.getUShort("d_om_3"));
     preferences.end();
 }
@@ -125,25 +145,34 @@ void LoadParameter::writeShadow()
     _shadowRegisters[6] = preferences.getUShort("u_oc_d1");
     _shadowRegisters[7] = preferences.getUShort("u_oc_dt1");
     _shadowRegisters[8] = preferences.getUShort("u_oc_rt1");
-    _shadowRegisters[9] = preferences.getUShort("u_om_1");
+    _shadowRegisters[9] = preferences.getUShort("u_sc_d1");
+    _shadowRegisters[10] = preferences.getUShort("u_sc_dt1");
+    _shadowRegisters[11] = preferences.getUShort("u_sc_rt1");
+    _shadowRegisters[12] = preferences.getUShort("u_om_1");
 
-    _shadowRegisters[10] = preferences.getUShort("u_ov_d2");
-    _shadowRegisters[11] = preferences.getUShort("u_ov_r2");
-    _shadowRegisters[12] = preferences.getUShort("u_uv_d2");
-    _shadowRegisters[13] = preferences.getUShort("u_uv_r2");
-    _shadowRegisters[14] = preferences.getUShort("u_oc_d2");
-    _shadowRegisters[15] = preferences.getUShort("u_oc_dt2");
-    _shadowRegisters[16] = preferences.getUShort("u_oc_rt2");
-    _shadowRegisters[17] = preferences.getUShort("u_om_2");
+    _shadowRegisters[13] = preferences.getUShort("u_ov_d2");
+    _shadowRegisters[14] = preferences.getUShort("u_ov_r2");
+    _shadowRegisters[15] = preferences.getUShort("u_uv_d2");
+    _shadowRegisters[16] = preferences.getUShort("u_uv_r2");
+    _shadowRegisters[17] = preferences.getUShort("u_oc_d2");
+    _shadowRegisters[18] = preferences.getUShort("u_oc_dt2");
+    _shadowRegisters[19] = preferences.getUShort("u_oc_rt2");
+    _shadowRegisters[20] = preferences.getUShort("u_sc_d2");
+    _shadowRegisters[21] = preferences.getUShort("u_sc_dt2");
+    _shadowRegisters[22] = preferences.getUShort("u_sc_rt2");
+    _shadowRegisters[23] = preferences.getUShort("u_om_2");
 
-    _shadowRegisters[18] = preferences.getUShort("u_ov_d3");
-    _shadowRegisters[19] = preferences.getUShort("u_ov_r3");
-    _shadowRegisters[20] = preferences.getUShort("u_uv_d3");
-    _shadowRegisters[21] = preferences.getUShort("u_uv_r3");
-    _shadowRegisters[22] = preferences.getUShort("u_oc_d3");
-    _shadowRegisters[23] = preferences.getUShort("u_oc_dt3");
-    _shadowRegisters[24] = preferences.getUShort("u_oc_rt3");
-    _shadowRegisters[25] = preferences.getUShort("u_om_3");
+    _shadowRegisters[24] = preferences.getUShort("u_ov_d3");
+    _shadowRegisters[25] = preferences.getUShort("u_ov_r3");
+    _shadowRegisters[26] = preferences.getUShort("u_uv_d3");
+    _shadowRegisters[27] = preferences.getUShort("u_uv_r3");
+    _shadowRegisters[28] = preferences.getUShort("u_oc_d3");
+    _shadowRegisters[29] = preferences.getUShort("u_oc_dt3");
+    _shadowRegisters[30] = preferences.getUShort("u_oc_rt3");
+    _shadowRegisters[31] = preferences.getUShort("u_sc_d3");
+    _shadowRegisters[32] = preferences.getUShort("u_sc_dt3");
+    _shadowRegisters[33] = preferences.getUShort("u_sc_rt3");
+    _shadowRegisters[34] = preferences.getUShort("u_om_3");
 
     preferences.end();
 }
@@ -192,55 +221,82 @@ void LoadParameter::writeSingle(size_t index, uint16_t value)
         case 8:
             setOvercurrentReconnectInterval1(value);
             break;
-        case 9 :
-            setOutputMode1(value);
+        case 9:
+            setShortCircuitDisconnect1(value);
             break;
         case 10:
-            setOvervoltageDisconnect2(value);
+            setShortCircuitDetectionTime1(value);
             break;
         case 11:
-            setOvervoltageReconnect2(value);
+            setShortCircuitReconnectInterval1(value);
             break;
-        case 12:
-            setUndervoltageDisconnect2(value);
+        case 12 :
+            setOutputMode1(value);
             break;
         case 13:
-            setUndervoltageReconnect2(value);
+            setOvervoltageDisconnect2(value);
             break;
         case 14:
-            setOvercurrentDisconnect2(value);
+            setOvervoltageReconnect2(value);
             break;
         case 15:
-            setOvercurrentDetectionTime2(value);
+            setUndervoltageDisconnect2(value);
             break;
         case 16:
-            setOvercurrentReconnectInterval2(value);
+            setUndervoltageReconnect2(value);
             break;
         case 17:
-            setOutputMode2(value);
+            setOvercurrentDisconnect2(value);
             break;
         case 18:
-            setOvervoltageDisconnect3(value);
+            setOvercurrentDetectionTime2(value);
             break;
         case 19:
-            setOvervoltageReconnect3(value);
+            setOvercurrentReconnectInterval2(value);
             break;
         case 20:
-            setUndervoltageDisconnect3(value);
+            setShortCircuitDisconnect2(value);
             break;
         case 21:
-            setUndervoltageReconnect3(value);
+            setShortCircuitDetectionTime2(value);
             break;
         case 22:
-            setOvercurrentDisconnect3(value);
+            setShortCircuitReconnectInterval2(value);
             break;
         case 23:
-            setOvercurrentDetectionTime3(value);
+            setOutputMode2(value);
             break;
         case 24:
-            setOvercurrentReconnectInterval3(value);
+            setOvervoltageDisconnect3(value);
             break;
         case 25:
+            setOvervoltageReconnect3(value);
+            break;
+        case 26:
+            setUndervoltageDisconnect3(value);
+            break;
+        case 27:
+            setUndervoltageReconnect3(value);
+            break;
+        case 28:
+            setOvercurrentDisconnect3(value);
+            break;
+        case 29:
+            setOvercurrentDetectionTime3(value);
+            break;
+        case 30:
+            setOvercurrentReconnectInterval3(value);
+            break;
+        case 31:
+            setShortCircuitDisconnect3(value);
+            break;
+        case 32:
+            setShortCircuitDetectionTime3(value);
+            break;
+        case 33:
+            setShortCircuitReconnectInterval3(value);
+            break;
+        case 34:
             setOutputMode3(value);
             break;
         default:
@@ -437,13 +493,43 @@ uint16_t LoadParameter::getOvercurrentReconnectInterval1()
 }
 
 /**
+ * get load 1 short circuit disconnect
+ * 
+ * @return  short circuit disconnect value in 0.01A (1250 = 12.5A)
+*/
+uint16_t LoadParameter::getShortCircuitDisconnect1()
+{
+    return _shadowRegisters[9];
+}
+
+/**
+ * get load 1 short circuit detection time
+ * 
+ * @return  short circuit detection time value in ms
+*/
+uint16_t LoadParameter::getShortCircuitDetectionTime1()
+{
+    return _shadowRegisters[10];
+}
+
+/**
+ * get load 1 short circuit reconnect interval time
+ * 
+ * @return  short circuit reconnect interval time value in ms
+*/
+uint16_t LoadParameter::getShortCircuitReconnectInterval1()
+{
+    return _shadowRegisters[11];
+}
+
+/**
  * get output mode 1
  * 
  * @return  output mode, 1 = source, 0 = sink
 */
 uint16_t LoadParameter::getOutputMode1()
 {
-    return _shadowRegisters[9];
+    return _shadowRegisters[12];
 }
 
 /**
@@ -453,7 +539,7 @@ uint16_t LoadParameter::getOutputMode1()
 */
 uint16_t LoadParameter::getOvervoltageDisconnect2()
 {
-    return _shadowRegisters[10];
+    return _shadowRegisters[13];
 }
 
 /**
@@ -463,7 +549,7 @@ uint16_t LoadParameter::getOvervoltageDisconnect2()
 */
 uint16_t LoadParameter::getOvervoltageReconnect2()
 {
-    return _shadowRegisters[11];
+    return _shadowRegisters[14];
 }
 
 /**
@@ -473,7 +559,7 @@ uint16_t LoadParameter::getOvervoltageReconnect2()
 */
 uint16_t LoadParameter::getUndervoltageDisconnect2()
 {
-    return _shadowRegisters[12];
+    return _shadowRegisters[15];
 }
 
 /**
@@ -483,7 +569,7 @@ uint16_t LoadParameter::getUndervoltageDisconnect2()
 */
 uint16_t LoadParameter::getUndervoltageReconnect2()
 {
-    return _shadowRegisters[13];
+    return _shadowRegisters[16];
 }
 
 /**
@@ -493,7 +579,7 @@ uint16_t LoadParameter::getUndervoltageReconnect2()
 */
 uint16_t LoadParameter::getOvercurrentDisconnect2()
 {
-    return _shadowRegisters[14];
+    return _shadowRegisters[17];
 }
 
 /**
@@ -503,7 +589,7 @@ uint16_t LoadParameter::getOvercurrentDisconnect2()
 */
 uint16_t LoadParameter::getOvercurrentDetectionTime2()
 {
-    return _shadowRegisters[15];
+    return _shadowRegisters[18];
 }
 
 /**
@@ -513,7 +599,37 @@ uint16_t LoadParameter::getOvercurrentDetectionTime2()
 */
 uint16_t LoadParameter::getOvercurrentReconnectInterval2()
 {
-    return _shadowRegisters[16];
+    return _shadowRegisters[19];
+}
+
+/**
+ * get load 2 short circuit disconnect
+ * 
+ * @return  short circuit disconnect value in 0.01A (1250 = 12.5A)
+*/
+uint16_t LoadParameter::getShortCircuitDisconnect2()
+{
+    return _shadowRegisters[20];
+}
+
+/**
+ * get load 2 short circuit detection time
+ * 
+ * @return  short circuit detection time value in ms
+*/
+uint16_t LoadParameter::getShortCircuitDetectionTime2()
+{
+    return _shadowRegisters[21];
+}
+
+/**
+ * get load 2 short circuit reconnect interval time
+ * 
+ * @return  short circuit reconnect interval time value in ms
+*/
+uint16_t LoadParameter::getShortCircuitReconnectInterval2()
+{
+    return _shadowRegisters[22];
 }
 
 /**
@@ -523,7 +639,7 @@ uint16_t LoadParameter::getOvercurrentReconnectInterval2()
 */
 uint16_t LoadParameter::getOutputMode2()
 {
-    return _shadowRegisters[17];
+    return _shadowRegisters[23];
 }
 
 /**
@@ -533,7 +649,7 @@ uint16_t LoadParameter::getOutputMode2()
 */
 uint16_t LoadParameter::getOvervoltageDisconnect3()
 {
-    return _shadowRegisters[18];
+    return _shadowRegisters[24];
 }
 
 /**
@@ -543,7 +659,7 @@ uint16_t LoadParameter::getOvervoltageDisconnect3()
 */
 uint16_t LoadParameter::getOvervoltageReconnect3()
 {
-    return _shadowRegisters[19];
+    return _shadowRegisters[25];
 }
 
 /**
@@ -553,7 +669,7 @@ uint16_t LoadParameter::getOvervoltageReconnect3()
 */
 uint16_t LoadParameter::getUndervoltageDisconnect3()
 {
-    return _shadowRegisters[20];
+    return _shadowRegisters[26];
 }
 
 /**
@@ -563,7 +679,7 @@ uint16_t LoadParameter::getUndervoltageDisconnect3()
 */
 uint16_t LoadParameter::getUndervoltageReconnect3()
 {
-    return _shadowRegisters[21];
+    return _shadowRegisters[27];
 }
 
 /**
@@ -573,7 +689,7 @@ uint16_t LoadParameter::getUndervoltageReconnect3()
 */
 uint16_t LoadParameter::getOvercurrentDisconnect3()
 {
-    return _shadowRegisters[22];
+    return _shadowRegisters[28];
 }
 
 /**
@@ -583,7 +699,7 @@ uint16_t LoadParameter::getOvercurrentDisconnect3()
 */
 uint16_t LoadParameter::getOvercurrentDetectionTime3()
 {
-    return _shadowRegisters[23];
+    return _shadowRegisters[29];
 }
 
 /**
@@ -593,7 +709,37 @@ uint16_t LoadParameter::getOvercurrentDetectionTime3()
 */
 uint16_t LoadParameter::getOvercurrentReconnectInterval3()
 {
-    return _shadowRegisters[24];
+    return _shadowRegisters[30];
+}
+
+/**
+ * get load 3 short circuit disconnect
+ * 
+ * @return  short circuit disconnect value in 0.01A (1250 = 12.5A)
+*/
+uint16_t LoadParameter::getShortCircuitDisconnect3()
+{
+    return _shadowRegisters[31];
+}
+
+/**
+ * get load 3 short circuit detection time
+ * 
+ * @return  short circuit detection time value in ms
+*/
+uint16_t LoadParameter::getShortCircuitDetectionTime3()
+{
+    return _shadowRegisters[32];
+}
+
+/**
+ * get load 3 short circuit reconnect interval time
+ * 
+ * @return  short circuit reconnect interval time value in ms
+*/
+uint16_t LoadParameter::getShortCircuitReconnectInterval3()
+{
+    return _shadowRegisters[33];
 }
 
 /**
@@ -603,7 +749,7 @@ uint16_t LoadParameter::getOvercurrentReconnectInterval3()
 */
 uint16_t LoadParameter::getOutputMode3()
 {
-    return _shadowRegisters[25];
+    return _shadowRegisters[34];
 }
 
 /**
@@ -764,6 +910,48 @@ void LoadParameter::setOvercurrentReconnectInterval1(uint16_t value)
 }
 
 /**
+ * save short circuit disconnect 1 into flash
+ * 
+ * @param[in]   value   overcurrent disconnect in 0.01A
+ */
+void LoadParameter::setShortCircuitDisconnect1(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_d1", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc dc 1 to %d\n", value);
+}
+
+/**
+ * save short circuit detection time 1 into flash
+ * 
+ * @param[in]   value   overcurrent detection time in ms
+ */
+void LoadParameter::setShortCircuitDetectionTime1(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_dt1", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc dt 1 to %d\n", value);
+}
+
+/**
+ * save short circuit reconnect interval 1 into flash
+ * 
+ * @param[in]   value   overcurrent reconnect interval time in ms
+ */
+void LoadParameter::setShortCircuitReconnectInterval1(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_rt1", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc rt 1 to %d\n", value);
+}
+
+/**
  * save output mode 1 into flash
  * 
  * @param[in]   value   output mode (0 - 1)
@@ -881,6 +1069,48 @@ void LoadParameter::setOvercurrentReconnectInterval2(uint16_t value)
     preferences.putUShort("u_oc_rt2", value);
     preferences.end();
     ESP_LOGI(_TAG, "set oc rt 2 to %d\n", value);
+}
+
+/**
+ * save short circuit disconnect 2 into flash
+ * 
+ * @param[in]   value   overcurrent disconnect in 0.01A
+ */
+void LoadParameter::setShortCircuitDisconnect2(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_d2", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc dc 2 to %d\n", value);
+}
+
+/**
+ * save short circuit detection time 2 into flash
+ * 
+ * @param[in]   value   overcurrent detection time in ms
+ */
+void LoadParameter::setShortCircuitDetectionTime2(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_dt2", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc dt 2 to %d\n", value);
+}
+
+/**
+ * save short circuit reconnect interval 2 into flash
+ * 
+ * @param[in]   value   overcurrent reconnect interval time in ms
+ */
+void LoadParameter::setShortCircuitReconnectInterval2(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_rt2", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc rt 2 to %d\n", value);
 }
 
 /**
@@ -1004,6 +1234,48 @@ void LoadParameter::setOvercurrentReconnectInterval3(uint16_t value)
 }
 
 /**
+ * save short circuit disconnect 3 into flash
+ * 
+ * @param[in]   value   overcurrent disconnect in 0.01A
+ */
+void LoadParameter::setShortCircuitDisconnect3(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_d3", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc dc 3 to %d\n", value);
+}
+
+/**
+ * save short circuit detection time 3 into flash
+ * 
+ * @param[in]   value   overcurrent detection time in ms
+ */
+void LoadParameter::setShortCircuitDetectionTime3(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_dt3", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc dt 3 to %d\n", value);
+}
+
+/**
+ * save short circuit reconnect interval 3 into flash
+ * 
+ * @param[in]   value   overcurrent reconnect interval time in ms
+ */
+void LoadParameter::setShortCircuitReconnectInterval3(uint16_t value)
+{
+    Preferences preferences;
+    preferences.begin(_name.c_str());
+    preferences.putUShort("u_sc_rt3", value);
+    preferences.end();
+    ESP_LOGI(_TAG, "set sc rt 3 to %d\n", value);
+}
+
+/**
  * save output mode 3 into flash
  * 
  * @param[in]   value   output mode (0 - 1)
@@ -1039,6 +1311,9 @@ void LoadParameter::printDefault()
     ESP_LOGI(_TAG, "d_oc_d1 : %d\n", preferences.getUShort("d_oc_d1"));
     ESP_LOGI(_TAG, "d_oc_dt1 : %d\n", preferences.getUShort("d_oc_dt1"));
     ESP_LOGI(_TAG, "d_oc_rt1 : %d\n", preferences.getUShort("d_oc_rt1"));
+    ESP_LOGI(_TAG, "d_sc_d1 : %d\n", preferences.getUShort("d_sc_d1"));
+    ESP_LOGI(_TAG, "d_sc_dt1 : %d\n", preferences.getUShort("d_sc_dt1"));
+    ESP_LOGI(_TAG, "d_sc_rt1 : %d\n", preferences.getUShort("d_sc_rt1"));
     ESP_LOGI(_TAG, "d_om_1 : %d\n", preferences.getUShort("d_om_1"));
 
     ESP_LOGI(_TAG, "d_ov_d2 : %d\n", preferences.getUShort("d_ov_d2"));
@@ -1048,6 +1323,9 @@ void LoadParameter::printDefault()
     ESP_LOGI(_TAG, "d_oc_d2 : %d\n", preferences.getUShort("d_oc_d2"));
     ESP_LOGI(_TAG, "d_oc_dt2 : %d\n", preferences.getUShort("d_oc_dt2"));
     ESP_LOGI(_TAG, "d_oc_rt2 : %d\n", preferences.getUShort("d_oc_rt2"));
+    ESP_LOGI(_TAG, "d_sc_d2 : %d\n", preferences.getUShort("d_sc_d2"));
+    ESP_LOGI(_TAG, "d_sc_dt2 : %d\n", preferences.getUShort("d_sc_dt2"));
+    ESP_LOGI(_TAG, "d_sc_rt2 : %d\n", preferences.getUShort("d_sc_rt2"));
     ESP_LOGI(_TAG, "d_om_2 : %d\n", preferences.getUShort("d_om_2"));
 
     ESP_LOGI(_TAG, "d_ov_d3 : %d\n", preferences.getUShort("d_ov_d3"));
@@ -1057,6 +1335,9 @@ void LoadParameter::printDefault()
     ESP_LOGI(_TAG, "d_oc_d3 : %d\n", preferences.getUShort("d_oc_d3"));
     ESP_LOGI(_TAG, "d_oc_dt3 : %d\n", preferences.getUShort("d_oc_dt3"));
     ESP_LOGI(_TAG, "d_oc_rt3 : %d\n", preferences.getUShort("d_oc_rt3"));
+    ESP_LOGI(_TAG, "d_sc_d3 : %d\n", preferences.getUShort("d_sc_d3"));
+    ESP_LOGI(_TAG, "d_sc_dt3 : %d\n", preferences.getUShort("d_sc_dt3"));
+    ESP_LOGI(_TAG, "d_sc_rt3 : %d\n", preferences.getUShort("d_sc_rt3"));
     ESP_LOGI(_TAG, "d_om_3 : %d\n", preferences.getUShort("d_om_3"));
 
     preferences.end();
@@ -1080,6 +1361,9 @@ void LoadParameter::printUser()
     ESP_LOGI(_TAG, "u_oc_d1 : %d\n", preferences.getUShort("u_oc_d1"));
     ESP_LOGI(_TAG, "u_oc_dt1 : %d\n", preferences.getUShort("u_oc_dt1"));
     ESP_LOGI(_TAG, "u_oc_rt1 : %d\n", preferences.getUShort("u_oc_rt1"));
+    ESP_LOGI(_TAG, "u_sc_d1 : %d\n", preferences.getUShort("u_sc_d1"));
+    ESP_LOGI(_TAG, "u_sc_dt1 : %d\n", preferences.getUShort("u_sc_dt1"));
+    ESP_LOGI(_TAG, "u_sc_rt1 : %d\n", preferences.getUShort("u_sc_rt1"));
     ESP_LOGI(_TAG, "u_om_1 : %d\n", preferences.getUShort("u_om_1"));
 
     ESP_LOGI(_TAG, "u_ov_d2 : %d\n", preferences.getUShort("u_ov_d2"));
@@ -1089,6 +1373,9 @@ void LoadParameter::printUser()
     ESP_LOGI(_TAG, "u_oc_d2 : %d\n", preferences.getUShort("u_oc_d2"));
     ESP_LOGI(_TAG, "u_oc_dt2 : %d\n", preferences.getUShort("u_oc_dt2"));
     ESP_LOGI(_TAG, "u_oc_rt2 : %d\n", preferences.getUShort("u_oc_rt2"));
+    ESP_LOGI(_TAG, "u_sc_d2 : %d\n", preferences.getUShort("u_sc_d2"));
+    ESP_LOGI(_TAG, "u_sc_dt2 : %d\n", preferences.getUShort("u_sc_dt2"));
+    ESP_LOGI(_TAG, "u_sc_rt2 : %d\n", preferences.getUShort("u_sc_rt2"));
     ESP_LOGI(_TAG, "u_om_2 : %d\n", preferences.getUShort("u_om_2"));
 
     ESP_LOGI(_TAG, "u_ov_d3 : %d\n", preferences.getUShort("u_ov_d3"));
@@ -1098,6 +1385,9 @@ void LoadParameter::printUser()
     ESP_LOGI(_TAG, "u_oc_d3 : %d\n", preferences.getUShort("u_oc_d3"));
     ESP_LOGI(_TAG, "u_oc_dt3 : %d\n", preferences.getUShort("u_oc_dt3"));
     ESP_LOGI(_TAG, "u_oc_rt3 : %d\n", preferences.getUShort("u_oc_rt3"));
+    ESP_LOGI(_TAG, "u_sc_d3 : %d\n", preferences.getUShort("u_sc_d3"));
+    ESP_LOGI(_TAG, "u_sc_dt3 : %d\n", preferences.getUShort("u_sc_dt3"));
+    ESP_LOGI(_TAG, "u_sc_rt3 : %d\n", preferences.getUShort("u_sc_rt3"));
     ESP_LOGI(_TAG, "u_om_3 : %d\n", preferences.getUShort("u_om_3"));
 
     preferences.end();

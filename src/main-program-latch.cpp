@@ -1,28 +1,8 @@
-/**
- * Pin Map
- * 
- * D21 -> DO1
- * D22 -> DO2
- * D23 -> DO3
- * D19 -> SCL
- * D18 -> SDA
- * D36 -> L1_Current_Sense_Ain
- * D39 -> L2_Current_Sense_Ain
- * D34 -> L3_Current_Sense_Ain
- * D32 -> RX2
- * D33 -> TX2
- * D25 -> MISO
- * D26 -> RST
- * D27 -> CS
- * D13 -> SCLK
- * D4 -> MOSI
- */
-
-
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <ADS1X15.h>
+#include <OneButton.h>
 #include <LoadParameter.h>
 
 #include <flashz-http.hpp>
@@ -43,6 +23,51 @@
 
 const char* TAG = "load-control";
 
+/**
+ * Pin Map
+ * 
+ * D36 -> L1_Current_Sense_Ain
+ * D39 -> L2_Current_Sense_Ain
+ * D34 -> L3_Current_Sense_Ain
+ * D32 -> SDA
+ * D33 -> SCL
+ * D27 -> MCB Feedback 1
+ * D26 -> Relay 1 ON
+ * D25 -> Relay 1 OFF
+ * D13 -> MCB Feedback 2
+ * D18 -> Relay 2 ON
+ * D19 -> Relay 2 OFF
+ * D21 -> MCB Feedback 3
+ * D22 -> Relay 3 ON
+ * D23 -> Relay 3 OFF
+ * D16 -> RX2
+ * D17 -> TX2
+ */
+
+struct device_pin {
+  uint8_t currentIn1 = 36;
+  uint8_t currentIn2 = 39;
+  uint8_t currentIn3 = 34;
+  uint8_t sda = 32;
+  uint8_t scl = 33;
+
+  uint8_t mcbFb1 = 27;
+  uint8_t relayOn1 = 26;
+  uint8_t relayOff1 = 25;
+
+  uint8_t mcbFb2 = 13;
+  uint8_t relayOn2 = 18;
+  uint8_t relayOff2 = 19;
+  
+  uint8_t mcbFb3 = 21;
+  uint8_t relayOn3 = 22;
+  uint8_t relayOff3 = 23;
+  
+  uint8_t rx2 = 16;
+  uint8_t tx2 = 17;
+} device_pin_t;
+
+
 LoadParameter lp;
 
 ModbusServerRTU MBserver(2000);
@@ -55,32 +80,29 @@ loadParamRegister paramRegs;
 
 LoadHandle loadHandle[3];
 
-CoilData myCoils(5);
+/**
+ * relay[0] -> Relay 1 ON
+ * relay[1] -> Relay 1 OFF
+ * relay[2] -> Relay 2 ON
+ * relay[3] -> Relay 2 OFF
+ * relay[4] -> Relay 3 ON
+ * relay[5] -> Relay 3 OFF
+ */
+PulseOutput relay[6];
+uint8_t relayFailedCounter[6];
 
-bool digitalOutput[3] = {0,0,0};
+OneButton mcb[3];
+
+CoilData myCoils(9);
+
+bool mcbConnected[3];
 
 uint16_t testCurrent = 0;
 
 unsigned long lastInc = 0;
 unsigned long lastTakenTime = 0;
 
-struct device_pin {
-  uint8_t do1 = 21;
-  uint8_t do2 = 22;
-  uint8_t do3 = 23;
-  uint8_t scl = 19;
-  uint8_t sda = 18;
-  uint8_t currentIn1 = 36;
-  uint8_t currentIn2 = 39;
-  uint8_t currentIn3 = 34;
-  uint8_t rx2 = 32;
-  uint8_t tx2 = 33;
-  uint8_t miso = 25;
-  uint8_t rst = 26;
-  uint8_t ss = 27;
-  uint8_t sck = 13;
-  uint8_t mosi = 4;
-} device_pin_t;
+unsigned long lastRelayFailedCheck[0];
 
 // FC_01: act on 0x01 requests - READ_COIL
 ModbusMessage FC_01(ModbusMessage request) {
@@ -297,14 +319,69 @@ ModbusMessage FC10(ModbusMessage request) {
 }
 
 
+void mcbLongPressStart1()
+{
+  ESP_LOGI(TAG, "pressed");
+  mcbConnected[0] = true;
+}
+
+void mcbLongPressStop1()
+{
+  ESP_LOGI(TAG, "released");
+  mcbConnected[0] = false;
+}
+
+void mcbLongPressStart2()
+{
+  mcbConnected[1] = true;
+}
+
+void mcbLongPressStop2()
+{
+  mcbConnected[1] = false;
+}
+
+void mcbLongPressStart3()
+{
+  mcbConnected[2] = true;
+}
+
+void mcbLongPressStop3()
+{
+  mcbConnected[2] = false;
+}
 
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  pinMode(device_pin_t.do1, OUTPUT);
-  pinMode(device_pin_t.do2, OUTPUT);
-  pinMode(device_pin_t.do3, OUTPUT);
+  mcb[0].setup(device_pin_t.mcbFb1, INPUT_PULLUP, true);
+  mcb[0].setDebounceMs(20);
+  mcb[0].setClickMs(50);
+  mcb[0].setPressMs(100);
+  mcb[0].attachLongPressStart(mcbLongPressStart1);
+  mcb[0].attachLongPressStop(mcbLongPressStop1);
+
+  mcb[1].setup(device_pin_t.mcbFb2, INPUT_PULLUP, true);
+  mcb[1].setDebounceMs(20);
+  mcb[1].setClickMs(50);
+  mcb[1].setPressMs(100);
+  mcb[1].attachLongPressStart(mcbLongPressStart2);
+  mcb[1].attachLongPressStop(mcbLongPressStop2);
+
+  mcb[2].setup(device_pin_t.mcbFb3, INPUT_PULLUP, true);
+  mcb[2].setDebounceMs(20);
+  mcb[2].setClickMs(50);
+  mcb[2].setPressMs(100);
+  mcb[2].attachLongPressStart(mcbLongPressStart3);
+  mcb[2].attachLongPressStop(mcbLongPressStop3);
+
+  relay[0].setup(device_pin_t.relayOn1, 500, 500);
+  relay[1].setup(device_pin_t.relayOff1, 500, 500);
+  relay[2].setup(device_pin_t.relayOn2);
+  relay[3].setup(device_pin_t.relayOff2);
+  relay[4].setup(device_pin_t.relayOn3);
+  relay[5].setup(device_pin_t.relayOff3);
 
   Serial.begin(115200);
   lp.begin("load1");
@@ -396,49 +473,129 @@ void loop() {
 
   uint16_t loadVolts = 550;
 
+  for (size_t i = 0; i < 6; i++)
+  {
+    relay[i].tick();
+  }
+
+  for (size_t i = 0; i < 3; i++)
+  {
+    mcb[i].tick();
+  }
+  
+  
+
   loadHandle[0].loop(loadVolts, convertedCurrent[0]);
   loadHandle[1].loop(loadVolts, convertedCurrent[1]);
   loadHandle[2].loop(loadVolts, convertedCurrent[2]);
 
-  for (size_t i = 0; i < 3; i++)
-  {
-    ESP_LOGI(TAG, "load voltage %d = %d\n", i+1, loadVolts);
-    ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, (int)current[i]);
-    ESP_LOGI(TAG, "unsigned load current %d = %d\n", i+1, convertedCurrent[i]);
-    ESP_LOGI(TAG, "overvoltage flag %d = %d\n", i+1, loadHandle[i].isOvervoltage());
-    ESP_LOGI(TAG, "undervoltage flag %d = %d\n", i+1, loadHandle[i].isUndervoltage());
-    ESP_LOGI(TAG, "overcurrent flag %d = %d\n", i+1, loadHandle[i].isOvercurrent());
-    ESP_LOGI(TAG, "short circuit flag %d = %d\n", i+1, loadHandle[i].isShortCircuit());
-  }
+  // for (size_t i = 0; i < 3; i++)
+  // {
+  //   ESP_LOGI(TAG, "load voltage %d = %d\n", i+1, loadVolts);
+  //   ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, (int)current[i]);
+  //   ESP_LOGI(TAG, "unsigned load current %d = %d\n", i+1, convertedCurrent[i]);
+  //   ESP_LOGI(TAG, "overvoltage flag %d = %d\n", i+1, loadHandle[i].isOvervoltage());
+  //   ESP_LOGI(TAG, "undervoltage flag %d = %d\n", i+1, loadHandle[i].isUndervoltage());
+  //   ESP_LOGI(TAG, "overcurrent flag %d = %d\n", i+1, loadHandle[i].isOvercurrent());
+  //   ESP_LOGI(TAG, "short circuit flag %d = %d\n", i+1, loadHandle[i].isShortCircuit());
+  // }
   
   // ESP_LOGI(TAG, "action : %d\n", loadHandle[0].getAction());
   // ESP_LOGI(TAG, "flag : %d\n", loadHandle[0].getStatus());
   // ESP_LOGI(TAG, "overvoltage flag : %d\n", loadHandle[0].isOvervoltage());
   // ESP_LOGI(TAG, "undervoltage flag : %d\n", loadHandle[0].isUndervoltage());
   // ESP_LOGI(TAG, "overcurrent flag : %d\n", loadHandle[0].isOvercurrent());
-  
+
   if (myCoils[3])
   {
-    ESP_LOGI(TAG, "manual");
-    digitalWrite(device_pin_t.do1, myCoils[0]);
-    digitalWrite(device_pin_t.do2, myCoils[1]);
-    digitalWrite(device_pin_t.do3, myCoils[2]);
+    // ESP_LOGI(TAG, "manual");
+
+    for (size_t i = 0; i < 6; i++)
+    {
+      if (myCoils[i])
+      {
+        relay[i].set();
+        myCoils.set(i, false);
+      }
+    }
     systemStatus.flag.mode = 1;
   }
   else
   {
+    ESP_LOGI(TAG, "AUTO");
     systemStatus.flag.mode = 0;
-    digitalWrite(device_pin_t.do1, loadHandle[0].getAction());
-    myCoils.set(0, loadHandle[0].getAction());
-    digitalWrite(device_pin_t.do2, loadHandle[1].getAction());
-    myCoils.set(1, loadHandle[1].getAction());
-    digitalWrite(device_pin_t.do3, loadHandle[2].getAction());
-    myCoils.set(2, loadHandle[2].getAction());
+    //check if handler turning on relay
+    if (loadHandle[0].getAction())
+    {
+      //check if mcb feedback is off, send pulse on relay
+      ESP_LOGI(TAG, "Turn on relay");
+      if (!mcbConnected[0])
+      {
+        if (feedbackStatus.flag.relayOn1Failed)
+        {
+          if (millis() - lastRelayFailedCheck[0] > 2000)
+          {
+            relay[0].set();
+            lastRelayFailedCheck[0] = millis();
+          }
+        }
+        else
+        {
+          relayFailedCounter[0] += 1;
+          if (relayFailedCounter[0] > 10)
+          {
+            ESP_LOGI(TAG, "relay on 1 failed");
+            feedbackStatus.flag.relayOn1Failed = 1; 
+          }
+        }
+      }
+      else
+      {
+        relayFailedCounter[0] = 0;
+        feedbackStatus.flag.relayOn1Failed = 0;
+      }
+    }
+    //check if handler turning off relay
+    else
+    {
+      //if mcb feedback is on, send pulse off relay
+      if (mcbConnected[0])
+      {
+        if (feedbackStatus.flag.relayOff1Failed) //if feedback or relay is failed, slowing down the trigger to protect the driver
+        {
+          if (millis() - lastRelayFailedCheck[1] > 2000)
+          {
+            relay[1].set();
+            lastRelayFailedCheck[0] = millis();
+          }
+        }
+        else
+        {
+          relayFailedCounter[1] += 1;
+          if (relayFailedCounter[1] > 10)
+          {
+            feedbackStatus.flag.relayOff1Failed = 1; 
+          }
+        }
+      }
+      else
+      {
+        relayFailedCounter[1] = 0;
+        feedbackStatus.flag.relayOff1Failed = 0;
+      }
+    }
+
+    // digitalWrite(device_pin_t.do1, loadHandle[0].getAction());
+    // myCoils.set(0, loadHandle[0].getAction());
+    // digitalWrite(device_pin_t.do2, loadHandle[1].getAction());
+    // myCoils.set(1, loadHandle[1].getAction());
+    // digitalWrite(device_pin_t.do3, loadHandle[2].getAction());
+    // myCoils.set(2, loadHandle[2].getAction());
   }
 
-  feedbackStatus.flag.mcb1 = myCoils[0];
-  feedbackStatus.flag.mcb2 = myCoils[1];
-  feedbackStatus.flag.mcb3 = myCoils[2];
+  feedbackStatus.flag.mcb1 = mcbConnected[0];
+  feedbackStatus.flag.mcb2 = mcbConnected[1];
+  feedbackStatus.flag.mcb3 = mcbConnected[3];
 
   buffRegs.assignLoadVoltage1(530);
   buffRegs.assignLoadVoltage2(540);
