@@ -1,4 +1,4 @@
-#include "loaddefs.h"
+#include "pulseoutput.h"
 
 PulseOutput::PulseOutput()
 {
@@ -45,15 +45,13 @@ void PulseOutput::tick()
         if (millis() - _lastPulseOnCheck < _pulseOnDuration)
         {
             ESP_LOGI(_TAG, "pulse on");
-            // digitalWrite(_pin, !_activeLow);
-            digitalWrite(_pin, HIGH);
+            digitalWrite(_pin, !_activeLow);
             _lastPulseOffCheck = millis();
         }
         else
         {
             ESP_LOGI(_TAG, "pulse off");
-            // digitalWrite(_pin, _activeLow);
-            digitalWrite(_pin, LOW);
+            digitalWrite(_pin, _activeLow);
             if (millis() - _lastPulseOffCheck > _pulseOffDuration)
             {
                 _lastPulseOnCheck = millis();
@@ -61,4 +59,9 @@ void PulseOutput::tick()
             }
         }
     }
+}
+
+bool PulseOutput::isRunning()
+{
+    return _isSet;
 }

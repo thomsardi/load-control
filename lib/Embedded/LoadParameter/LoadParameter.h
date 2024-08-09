@@ -44,9 +44,9 @@ private:
     const char* _TAG = "load control parameter";
     loadParamRegister _shadowRegisters = {
         6, 254,  // baudrate, id
-        600, 580, 500, 510, 1000, 500, 4000, 2000, 20, 4000, 0,   // Load 1 : overvoltage disconnect, overvoltage reconnect, undervoltage disconnect, undervoltage reconnect, overcurrent disconnect, overcurrent detection time, overcurrent reconnect interval, short disconnect, short detection time, shoort reconnect, output mode
-        600, 580, 500, 510, 1000, 500, 4000, 2000, 20, 4000, 0,
-        600, 580, 500, 510, 1000, 500, 4000, 2000, 20, 4000, 0
+        600, 580, 500, 510, 1100, 500, 4000, 2000, 20, 4000, 0,   // Load 1 : overvoltage disconnect, overvoltage reconnect, undervoltage disconnect, undervoltage reconnect, overcurrent disconnect, overcurrent detection time, overcurrent reconnect interval, short disconnect, short detection time, shoort reconnect, output mode
+        600, 580, 500, 510, 1100, 500, 4000, 2000, 20, 4000, 0,
+        600, 580, 500, 510, 1100, 500, 4000, 2000, 20, 4000, 0
     };
     String _name;
     void checkUpdatedValue(size_t buffSize, uint16_t* inputParam, uint16_t* deviceParam);

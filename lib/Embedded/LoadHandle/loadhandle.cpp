@@ -35,17 +35,10 @@ void LoadHandle::setParams(const LoadParamsSetting &load_params_t)
  * @param[in]   loadVoltage load voltage in 0.1V
  * @param[in]   loadCurrent load current in 0.01A
  */
-void LoadHandle::loop(uint16_t loadVoltage, uint16_t loadCurrent)
+void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
 {
-    if (!_bitStatus.flag.overvoltage && !_bitStatus.flag.undervoltage && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
-    {
-        _state = !_isActiveLow;
-    }
-    else
-    {
-        _state = _isActiveLow;
-    }
-
+    loadCurrent = abs(loadCurrent);
+    ESP_LOGI(_TAG, "current : %d\n", loadCurrent);
     if (loadVoltage > _loadOvervoltageDisconnect)
     {
         _bitStatus.flag.overvoltage = 1;
@@ -124,6 +117,15 @@ void LoadHandle::loop(uint16_t loadVoltage, uint16_t loadCurrent)
     else
     {
         _lastOcReconnect = millis();
+    }
+
+    if (!_bitStatus.flag.overvoltage && !_bitStatus.flag.undervoltage && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
+    {
+        _state = !_isActiveLow;
+    }
+    else
+    {
+        _state = _isActiveLow;
     }
 }
 

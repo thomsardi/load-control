@@ -32,7 +32,7 @@ namespace LoadModbus {
     
     struct modbusRegister
     {
-        std::array<uint16_t, 15> inputRegister;
+        std::array<uint16_t, 12> inputRegister;
         std::array<uint16_t, 35> holdingRegister;
 
         modbusRegister()
@@ -41,67 +41,64 @@ namespace LoadModbus {
             holdingRegister.fill(0);
         }
 
-        void assignLoadVoltage1(uint16_t value)
+        void assignLoadVoltage1(int16_t value)
         {
             inputRegister[0] = value;
         }
 
-        void assignLoadVoltage2(uint16_t value)
+        void assignLoadVoltage2(int16_t value)
         {
             inputRegister[1] = value;
         }
 
-        void assignLoadVoltage3(uint16_t value)
+        void assignLoadVoltage3(int16_t value)
         {
             inputRegister[2] = value;
         }
 
-        void assignSystemVoltage(uint16_t value)
+        void assignSystemVoltage(int16_t value)
         {
             inputRegister[3] = value;
         }
 
-        void assignLoadCurrent1(int value)
+        void assignLoadCurrent1(int16_t value)
         {
-            inputRegister[4] = value >> 16;
-            inputRegister[5] = value & 0xFFFF;
+            inputRegister[4] = value;
         }
 
-        void assignLoadCurrent2(int value)
+        void assignLoadCurrent2(int16_t value)
         {
-            inputRegister[6] = value >> 16;
-            inputRegister[7] = value & 0xFFFF;
+            inputRegister[5] = value;
         }
 
-        void assignLoadCurrent3(int value)
+        void assignLoadCurrent3(int16_t value)
         {
-            inputRegister[8] = value >> 16;
-            inputRegister[9] = value & 0xFFFF;
+            inputRegister[6] = value;
         }
 
         void assignFlag1(uint16_t value)
         {
-            inputRegister[10] = value;
+            inputRegister[7] = value;
         }
 
         void assignFlag2(uint16_t value)
         {
-            inputRegister[11] = value;
+            inputRegister[8] = value;
         }
 
         void assignFlag3(uint16_t value)
         {
-            inputRegister[12] = value;
+            inputRegister[9] = value;
         }
 
         void assignFeedbackStatus(uint16_t value)
         {
-            inputRegister[13] = value;
+            inputRegister[10] = value;
         }
 
         void assignSystemStatus(uint16_t value)
         {
-            inputRegister[14] = value;
+            inputRegister[11] = value;
         }
 
         size_t assignHoldingRegister(std::array<uint16_t, 35> &regs)
@@ -153,8 +150,8 @@ struct LoadParamsSetting {
 union bitField {
     struct flagStatus
     {
-        uint16_t overvoltage : 1;
         uint16_t undervoltage : 1;
+        uint16_t overvoltage : 1;
         uint16_t overcurrent : 1;
         uint16_t shortCircuit : 1;
         uint16_t : 12;
@@ -187,7 +184,7 @@ class LoadHandle {
     public :
         LoadHandle();
         void setParams(const LoadParamsSetting &load_params_t);
-        void loop(uint16_t loadVoltage, uint16_t loadCurrent);
+        void loop(int16_t loadVoltage, int16_t loadCurrent);
         bool getAction();
         bool isOvervoltage();
         bool isUndervoltage();
@@ -196,26 +193,6 @@ class LoadHandle {
         float toCurrent(int raw, int gain = 66, int maxRaw = 4096, int minRaw = 0, int midPoint = 2048);
         uint16_t getStatus();
         ~LoadHandle();
-};
-
-class PulseOutput {
-    private :
-        const char* _TAG = "pulse-output";
-        uint8_t _pin;
-        int _pulseOnDuration = 50;
-        int _pulseOffDuration = 50;
-        unsigned long _lastPulseOnCheck;
-        unsigned long _lastPulseOffCheck;
-        bool _activeLow = false;
-        bool _isSet = false;
-    public :
-        PulseOutput();
-        void setup(uint8_t pin, int pulseOnDuration = 50, int pulseOffDuration = 50, bool activeLow = false);
-        void set();
-        void changePulseOnDuration(int duration);
-        void changePulseOffDuration(int duration);
-        void changeActiveState(bool activeLow = false);
-        void tick();
 };
 
 #endif

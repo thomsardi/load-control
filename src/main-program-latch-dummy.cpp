@@ -70,6 +70,13 @@ struct device_pin {
   uint8_t tx2 = 17;
 } device_pin_t;
 
+enum STATE : uint8_t {
+  UNDER_VOLTAGE,
+  OVER_VOLTAGE,
+  OVERCURRENT,
+  SHORT_CIRCUIT,
+  NORMAL
+};
 
 LoadParameter lp;
 
@@ -94,7 +101,6 @@ LatchHandle latchHandle[3];
  * relay[5] -> Relay 3 OFF
  */
 PulseOutput relay[6];
-uint8_t relayFailedCounter[6];
 
 OneButton mcb[3];
 
@@ -102,12 +108,15 @@ CoilData myCoils(9);
 
 bool mcbConnected[3];
 
-uint16_t testCurrent = 0;
+int16_t dummyVoltage[3];
+int16_t dummyCurrent[3];
+
+uint8_t currentState = UNDER_VOLTAGE;
 
 unsigned long lastInc = 0;
 unsigned long lastTakenTime = 0;
 
-unsigned long lastRelayFailedCheck[0];
+unsigned long lastChangeState;
 
 // FC_01: act on 0x01 requests - READ_COIL
 ModbusMessage FC_01(ModbusMessage request) {
@@ -466,13 +475,60 @@ void loop() {
   raw[1] = analogRead(39); // current load 2
   raw[2] = analogRead(34); // current load 3
 
-  int16_t loadVolts = analogRead(35) / 6;
-
   float current[3];
   for (size_t i = 0; i < 3; i++)
   {
     current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
   }
+
+  switch (currentState)
+  {
+    case UNDER_VOLTAGE:
+        for (size_t i = 0; i < 3; i++)
+        {
+          dummyVoltage[i] = random(400, 480);
+          dummyCurrent[i] = random(-800, 800);
+        }
+    break;
+    case OVER_VOLTAGE:
+        for (size_t i = 0; i < 3; i++)
+        {
+          dummyVoltage[i] = random(590, 660);
+          dummyCurrent[i] = random(-800, 800);
+        }
+    break;
+    case OVERCURRENT:
+        for (size_t i = 0; i < 3; i++)
+        {
+          dummyVoltage[i] = random(520, 570);
+          dummyCurrent[i] = random(1000, 1500);
+        }
+    break;
+    case SHORT_CIRCUIT:
+        for (size_t i = 0; i < 3; i++)
+        {
+          dummyVoltage[i] = random(520, 570);
+          dummyCurrent[i] = random(2100, 2500);
+        }
+    break;
+    case NORMAL:
+        for (size_t i = 0; i < 3; i++)
+        {
+          dummyVoltage[i] = random(520, 570);
+          dummyCurrent[i] = random(-800, 800);
+        }
+    break;
+    default:
+      break;
+  }
+
+  if (millis() - lastChangeState > 3000)
+  {
+    currentState++;
+    currentState == NORMAL? currentState = UNDER_VOLTAGE : currentState;
+    lastChangeState = millis();
+  }
+  
 
   for (size_t i = 0; i < 6; i++)
   {
@@ -484,27 +540,20 @@ void loop() {
     mcb[i].tick();
   }
     
+  loadHandle[0].loop(dummyVoltage[0], dummyCurrent[0]);
+  loadHandle[1].loop(dummyVoltage[1], dummyCurrent[1]);
+  loadHandle[2].loop(dummyVoltage[2], dummyCurrent[2]);
 
-  loadHandle[0].loop(loadVolts, current[0]);
-  loadHandle[1].loop(loadVolts, current[1]);
-  loadHandle[2].loop(loadVolts, current[2]);
-
-  // for (size_t i = 0; i < 3; i++)
-  // {
-  //   ESP_LOGI(TAG, "load voltage %d = %d\n", i+1, loadVolts);
-  //   ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, (int16_t)current[i]);
-  //   ESP_LOGI(TAG, "unsigned load current %d = %d\n", i+1, (uint16_t)current[i]);
-  //   ESP_LOGI(TAG, "overvoltage flag %d = %d\n", i+1, loadHandle[i].isOvervoltage());
-  //   ESP_LOGI(TAG, "undervoltage flag %d = %d\n", i+1, loadHandle[i].isUndervoltage());
-  //   ESP_LOGI(TAG, "overcurrent flag %d = %d\n", i+1, loadHandle[i].isOvercurrent());
-  //   ESP_LOGI(TAG, "short circuit flag %d = %d\n", i+1, loadHandle[i].isShortCircuit());
-  // }
-  
-  // ESP_LOGI(TAG, "action : %d\n", loadHandle[0].getAction());
-  // ESP_LOGI(TAG, "flag : %d\n", loadHandle[0].getStatus());
-  // ESP_LOGI(TAG, "overvoltage flag : %d\n", loadHandle[0].isOvervoltage());
-  // ESP_LOGI(TAG, "undervoltage flag : %d\n", loadHandle[0].isUndervoltage());
-  // ESP_LOGI(TAG, "overcurrent flag : %d\n", loadHandle[0].isOvercurrent());
+  for (size_t i = 0; i < 3; i++)
+  {
+    ESP_LOGI(TAG, "load voltage %d = %d\n", i+1, dummyVoltage[i]);
+    ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, dummyCurrent[i]);
+    ESP_LOGI(TAG, "unsigned load current %d = %d\n", i+1, (uint16_t)dummyCurrent[i]);
+    ESP_LOGI(TAG, "overvoltage flag %d = %d\n", i+1, loadHandle[i].isOvervoltage());
+    ESP_LOGI(TAG, "undervoltage flag %d = %d\n", i+1, loadHandle[i].isUndervoltage());
+    ESP_LOGI(TAG, "overcurrent flag %d = %d\n", i+1, loadHandle[i].isOvercurrent());
+    ESP_LOGI(TAG, "short circuit flag %d = %d\n", i+1, loadHandle[i].isShortCircuit());
+  }
 
   if (myCoils[3])
   {
@@ -538,13 +587,13 @@ void loop() {
   feedbackStatus.flag.mcb2 = mcbConnected[1];
   feedbackStatus.flag.mcb3 = mcbConnected[2];
 
-  buffRegs.assignLoadVoltage1(loadVolts);
-  buffRegs.assignLoadVoltage2(loadVolts);
-  buffRegs.assignLoadVoltage3(loadVolts);
-  buffRegs.assignSystemVoltage(loadVolts);
-  buffRegs.assignLoadCurrent1(current[0]);
-  buffRegs.assignLoadCurrent2(current[1]);
-  buffRegs.assignLoadCurrent3(current[2]);
+  buffRegs.assignLoadVoltage1(dummyVoltage[0]);
+  buffRegs.assignLoadVoltage2(dummyVoltage[1]);
+  buffRegs.assignLoadVoltage3(dummyVoltage[2]);
+  buffRegs.assignSystemVoltage(dummyVoltage[2]);
+  buffRegs.assignLoadCurrent1(dummyCurrent[0]);
+  buffRegs.assignLoadCurrent2(dummyCurrent[1]);
+  buffRegs.assignLoadCurrent3(dummyCurrent[2]);
   buffRegs.assignFlag1(loadHandle[0].getStatus());
   buffRegs.assignFlag2(loadHandle[1].getStatus());
   buffRegs.assignFlag3(loadHandle[2].getStatus());
