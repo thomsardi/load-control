@@ -97,10 +97,15 @@ PulseOutput relay[6];
 uint8_t relayFailedCounter[6];
 
 OneButton mcb[3];
+// OneButton buttonOn, buttonOff, buttonMode;
 
 CoilData myCoils(9);
 
 bool mcbConnected[3];
+
+bool buttonOnClicked = false;
+bool buttonOffClicked = false;
+bool buttonModePressed = false;
 
 uint16_t testCurrent = 0;
 
@@ -326,13 +331,13 @@ ModbusMessage FC10(ModbusMessage request) {
 
 void mcbLongPressStart1()
 {
-  ESP_LOGI(TAG, "pressed");
+  // ESP_LOGI(TAG, "pressed");
   mcbConnected[0] = true;
 }
 
 void mcbLongPressStop1()
 {
-  ESP_LOGI(TAG, "released");
+  // ESP_LOGI(TAG, "released");
   mcbConnected[0] = false;
 }
 
@@ -355,6 +360,28 @@ void mcbLongPressStop3()
 {
   mcbConnected[2] = false;
 }
+
+// void buttonOnClick()
+// {
+//   ESP_LOGI(TAG, "button on clicked\n");
+//   buttonOnClicked = true;
+// }
+
+// void buttonOffClick()
+// {
+//   ESP_LOGI(TAG, "button on clicked\n");
+//   buttonOffClicked = true;
+// }
+
+// void buttonModePress()
+// {
+//   buttonModePressed = true;
+// }
+
+// void buttonModeRelease()
+// {
+//   buttonModePressed = false;
+// }
 
 void setup() {
   // put your setup code here, to run once:
@@ -380,6 +407,24 @@ void setup() {
   mcb[2].setPressMs(100);
   mcb[2].attachLongPressStart(mcbLongPressStart3);
   mcb[2].attachLongPressStop(mcbLongPressStop3);
+
+  // buttonOn.setup(32, INPUT_PULLUP, true);
+  // buttonOn.setDebounceMs(20);
+  // buttonOn.setClickMs(50);
+  // buttonOn.setPressMs(100);
+  // buttonOn.attachClick(buttonOnClick);
+  // buttonOff.setup(33, INPUT_PULLUP, true);
+  // buttonOff.setDebounceMs(20);
+  // buttonOff.setClickMs(50);
+  // buttonOff.setPressMs(100);
+  // buttonOff.attachClick(buttonOffClick);
+
+  // buttonMode.setup(4, INPUT_PULLUP, true);
+  // buttonMode.setDebounceMs(20);
+  // buttonMode.setClickMs(50);
+  // buttonMode.setPressMs(100);
+  // buttonMode.attachLongPressStart(buttonModePress);
+  // buttonMode.attachLongPressStop(buttonModeRelease);
 
   latchHandle[0].setup(device_pin_t.relayOn1, device_pin_t.relayOff1, 100, 100);
   latchHandle[1].setup(device_pin_t.relayOn2, device_pin_t.relayOff2, 100, 100);
@@ -484,10 +529,15 @@ void loop() {
     mcb[i].tick();
   }
     
-
+  // buttonOn.tick();
+  // buttonOff.tick();
+  // buttonMode.tick();
   loadHandle[0].loop(loadVolts, current[0]);
   loadHandle[1].loop(loadVolts, current[1]);
   loadHandle[2].loop(loadVolts, current[2]);
+  latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
+  latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
+  latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
 
   // for (size_t i = 0; i < 3; i++)
   // {
@@ -506,10 +556,14 @@ void loop() {
   // ESP_LOGI(TAG, "undervoltage flag : %d\n", loadHandle[0].isUndervoltage());
   // ESP_LOGI(TAG, "overcurrent flag : %d\n", loadHandle[0].isOvercurrent());
 
-  if (myCoils[3])
+  if (myCoils[6])
   {
-    // ESP_LOGI(TAG, "manual");
-
+    ESP_LOGI(TAG, "manual");
+    for (size_t i = 0; i < 3; i++)
+    {
+      latchHandle[i].setManual();
+    }
+    
     for (size_t i = 0; i < 6; i++)
     {
       if (myCoils[i])
@@ -522,10 +576,12 @@ void loop() {
   }
   else
   {
+    ESP_LOGI(TAG, "auto");
     systemStatus.flag.mode = 0;
-    latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
-    latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
-    latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
+    for (size_t i = 0; i < 3; i++)
+    {
+      latchHandle[i].setAuto();
+    }
     feedbackStatus.flag.relayOn1Failed = latchHandle[0].isFailedOn();
     feedbackStatus.flag.relayOff1Failed = latchHandle[0].isFailedOff();
     feedbackStatus.flag.relayOn2Failed = latchHandle[1].isFailedOn();
@@ -551,10 +607,18 @@ void loop() {
   buffRegs.assignFeedbackStatus(feedbackStatus.value);
   buffRegs.assignSystemStatus(systemStatus.value);
 
-  if (myCoils[4])
+  if (myCoils[8])
+  {
+    ESP_LOGI(TAG, "factory reset");
+    myCoils.set(8, false);
+    lp.reset();
+  }
+  
+  if (myCoils[7])
   {
     ESP_LOGI(TAG, "restart");
+    myCoils.set(7, false);
+    ESP.restart();
   }
-
   delay(5);
 }

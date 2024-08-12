@@ -22,11 +22,21 @@ private:
     bool _activeLow;
     bool _failOn;
     bool _failOff;
+    bool _isStop;
+    bool _isManual;
+    bool _isSet;
+    bool _isReset;
     unsigned long _lastFailOnCheck;
     unsigned long _lastFailOffCheck;
 public:
     LatchHandle(/* args */);
     void setup(int pinOn, int pinOff, int onDuration = 50, int offDuration = 50, bool activeLow = false, int interval = 2000);
+    void setManual();
+    void setAuto();
+    void set();
+    void reset();
+    void stop();
+    void restart();
     void setDuration(int onDuration, int offDuration);
     void setRetryonFail(int interval);
     void setActiveState(bool activeLow);

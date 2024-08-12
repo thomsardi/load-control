@@ -23,6 +23,12 @@ void PulseOutput::set()
     }
 }
 
+void PulseOutput::reset()
+{
+    _isSet = false;
+    digitalWrite(_pin, _activeLow);
+}
+
 void PulseOutput::changeActiveState(bool activeLow)
 {
     _activeLow = activeLow;

@@ -17,6 +17,7 @@ class PulseOutput {
         PulseOutput();
         void setup(uint8_t pin, int pulseOnDuration = 50, int pulseOffDuration = 50, bool activeLow = false);
         void set();
+        void reset();
         void changePulseOnDuration(int duration);
         void changePulseOffDuration(int duration);
         void changeActiveState(bool activeLow = false);

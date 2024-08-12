@@ -543,6 +543,9 @@ void loop() {
   loadHandle[0].loop(dummyVoltage[0], dummyCurrent[0]);
   loadHandle[1].loop(dummyVoltage[1], dummyCurrent[1]);
   loadHandle[2].loop(dummyVoltage[2], dummyCurrent[2]);
+  latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
+  latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
+  latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
 
   for (size_t i = 0; i < 3; i++)
   {
@@ -555,10 +558,14 @@ void loop() {
     ESP_LOGI(TAG, "short circuit flag %d = %d\n", i+1, loadHandle[i].isShortCircuit());
   }
 
-  if (myCoils[3])
+  if (myCoils[6])
   {
-    // ESP_LOGI(TAG, "manual");
-
+    ESP_LOGI(TAG, "manual");
+    for (size_t i = 0; i < 3; i++)
+    {
+      latchHandle[i].setManual();
+    }
+    
     for (size_t i = 0; i < 6; i++)
     {
       if (myCoils[i])
@@ -571,10 +578,12 @@ void loop() {
   }
   else
   {
+    ESP_LOGI(TAG, "auto");
     systemStatus.flag.mode = 0;
-    latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
-    latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
-    latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
+    for (size_t i = 0; i < 3; i++)
+    {
+      latchHandle[i].setAuto();
+    }
     feedbackStatus.flag.relayOn1Failed = latchHandle[0].isFailedOn();
     feedbackStatus.flag.relayOff1Failed = latchHandle[0].isFailedOff();
     feedbackStatus.flag.relayOn2Failed = latchHandle[1].isFailedOn();
@@ -600,10 +609,18 @@ void loop() {
   buffRegs.assignFeedbackStatus(feedbackStatus.value);
   buffRegs.assignSystemStatus(systemStatus.value);
 
-  if (myCoils[4])
+  if (myCoils[8])
   {
-    ESP_LOGI(TAG, "restart");
+    ESP_LOGI(TAG, "factory reset");
+    myCoils.set(8, false);
+    lp.reset();
   }
 
+  if (myCoils[7])
+  {
+    ESP_LOGI(TAG, "restart");
+    myCoils.set(7, false);
+    ESP.restart();
+  }
   delay(5);
 }
