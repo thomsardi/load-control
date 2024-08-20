@@ -19,13 +19,16 @@ namespace LoadModbus {
             uint16_t mcb1 : 1;
             uint16_t mcb2 : 1;
             uint16_t mcb3 : 1;
-            uint16_t relayOn1Failed: 1;
-            uint16_t relayOff1Failed: 1;
-            uint16_t relayOn2Failed: 1;
-            uint16_t relayOff2Failed: 1;
-            uint16_t relayOn3Failed: 1;
-            uint16_t relayOff3Failed: 1;
-            uint16_t :7;
+            uint16_t relayFeedback1 : 1;
+            uint16_t relayFeedback2 : 1;
+            uint16_t relayFeedback3 : 1;
+            uint16_t relayOnFailed1: 1;
+            uint16_t relayOffFailed1: 1;
+            uint16_t relayOnFailed2: 1;
+            uint16_t relayOffFailed2: 1;
+            uint16_t relayOnFailed3: 1;
+            uint16_t relayOffFailed3: 1;
+            uint16_t :4;
         } flag;
         uint16_t value;
     };
@@ -184,6 +187,7 @@ class LoadHandle {
     public :
         LoadHandle();
         void setParams(const LoadParamsSetting &load_params_t);
+        void printParams();
         void loop(int16_t loadVoltage, int16_t loadCurrent);
         bool getAction();
         bool isOvervoltage();

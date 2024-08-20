@@ -54,15 +54,15 @@ struct device_pin {
   uint8_t sda = 32;
   uint8_t scl = 33;
 
-  uint8_t mcbFb1 = 27;
+  uint8_t relayFb1 = 27;
   uint8_t relayOn1 = 26;
   uint8_t relayOff1 = 25;
 
-  uint8_t mcbFb2 = 13;
+  uint8_t relayFb2 = 13;
   uint8_t relayOn2 = 18;
   uint8_t relayOff2 = 19;
   
-  uint8_t mcbFb3 = 21;
+  uint8_t relayFb3 = 21;
   uint8_t relayOn3 = 22;
   uint8_t relayOff3 = 23;
   
@@ -71,11 +71,13 @@ struct device_pin {
 } device_pin_t;
 
 enum STATE : uint8_t {
+  NO_VOLTAGE,
   UNDER_VOLTAGE,
   OVER_VOLTAGE,
   OVERCURRENT,
   SHORT_CIRCUIT,
-  NORMAL
+  NORMAL,
+  END
 };
 
 LoadParameter lp;
@@ -102,16 +104,18 @@ LatchHandle latchHandle[3];
  */
 PulseOutput relay[6];
 
-OneButton mcb[3];
+OneButton relayFeedback[3];
 
 CoilData myCoils(9);
 
-bool mcbConnected[3];
+bool relayConnected[3];
 
-int16_t dummyVoltage[3];
+bool isParameterChanged = false;
+
+int16_t dummyVoltage[4];
 int16_t dummyCurrent[3];
 
-uint8_t currentState = UNDER_VOLTAGE;
+uint8_t currentState = NO_VOLTAGE;
 
 unsigned long lastInc = 0;
 unsigned long lastTakenTime = 0;
@@ -250,6 +254,7 @@ ModbusMessage FC06(ModbusMessage request) {
     lp.getAllParameter(paramRegs);
     // Looks okay. Set up message with serverID, FC, address and data
     response.add(request.getServerID(), request.getFunctionCode(), address, data);
+    isParameterChanged = true;
   } else {
     // No, either address or words are outside the limits. Set up error response.
     response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
@@ -325,6 +330,8 @@ ModbusMessage FC10(ModbusMessage request) {
     
     // Looks okay. Set up message with serverID, FC and length of data
     response.add(request.getServerID(), request.getFunctionCode(), address, words);
+
+    isParameterChanged = true;
   } else {
     // No, either address or words are outside the limits. Set up error response.
     response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
@@ -333,62 +340,62 @@ ModbusMessage FC10(ModbusMessage request) {
 }
 
 
-void mcbLongPressStart1()
+void relayFeedbackLongPressStart1()
 {
   ESP_LOGI(TAG, "pressed");
-  mcbConnected[0] = true;
+  relayConnected[0] = true;
 }
 
-void mcbLongPressStop1()
+void relayFeedbackLongPressStop1()
 {
   ESP_LOGI(TAG, "released");
-  mcbConnected[0] = false;
+  relayConnected[0] = false;
 }
 
-void mcbLongPressStart2()
+void relayFeedbackLongPressStart2()
 {
-  mcbConnected[1] = true;
+  relayConnected[1] = true;
 }
 
-void mcbLongPressStop2()
+void relayFeedbackLongPressStop2()
 {
-  mcbConnected[1] = false;
+  relayConnected[1] = false;
 }
 
-void mcbLongPressStart3()
+void relayFeedbackLongPressStart3()
 {
-  mcbConnected[2] = true;
+  relayConnected[2] = true;
 }
 
-void mcbLongPressStop3()
+void relayFeedbackLongPressStop3()
 {
-  mcbConnected[2] = false;
+  relayConnected[2] = false;
 }
 
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  mcb[0].setup(device_pin_t.mcbFb1, INPUT_PULLUP, true);
-  mcb[0].setDebounceMs(20);
-  mcb[0].setClickMs(50);
-  mcb[0].setPressMs(100);
-  mcb[0].attachLongPressStart(mcbLongPressStart1);
-  mcb[0].attachLongPressStop(mcbLongPressStop1);
+  relayFeedback[0].setup(device_pin_t.relayFb1, INPUT_PULLUP, true);
+  relayFeedback[0].setDebounceMs(20);
+  relayFeedback[0].setClickMs(50);
+  relayFeedback[0].setPressMs(100);
+  relayFeedback[0].attachLongPressStart(relayFeedbackLongPressStart1);
+  relayFeedback[0].attachLongPressStop(relayFeedbackLongPressStop1);
 
-  mcb[1].setup(device_pin_t.mcbFb2, INPUT_PULLUP, true);
-  mcb[1].setDebounceMs(20);
-  mcb[1].setClickMs(50);
-  mcb[1].setPressMs(100);
-  mcb[1].attachLongPressStart(mcbLongPressStart2);
-  mcb[1].attachLongPressStop(mcbLongPressStop2);
+  relayFeedback[1].setup(device_pin_t.relayFb2, INPUT_PULLUP, true);
+  relayFeedback[1].setDebounceMs(20);
+  relayFeedback[1].setClickMs(50);
+  relayFeedback[1].setPressMs(100);
+  relayFeedback[1].attachLongPressStart(relayFeedbackLongPressStart2);
+  relayFeedback[1].attachLongPressStop(relayFeedbackLongPressStop2);
 
-  mcb[2].setup(device_pin_t.mcbFb3, INPUT_PULLUP, true);
-  mcb[2].setDebounceMs(20);
-  mcb[2].setClickMs(50);
-  mcb[2].setPressMs(100);
-  mcb[2].attachLongPressStart(mcbLongPressStart3);
-  mcb[2].attachLongPressStop(mcbLongPressStop3);
+  relayFeedback[2].setup(device_pin_t.relayFb3, INPUT_PULLUP, true);
+  relayFeedback[2].setDebounceMs(20);
+  relayFeedback[2].setClickMs(50);
+  relayFeedback[2].setPressMs(100);
+  relayFeedback[2].attachLongPressStart(relayFeedbackLongPressStart3);
+  relayFeedback[2].attachLongPressStop(relayFeedbackLongPressStop3);
 
   latchHandle[0].setup(device_pin_t.relayOn1, device_pin_t.relayOff1, 100, 100);
   latchHandle[1].setup(device_pin_t.relayOn2, device_pin_t.relayOff2, 100, 100);
@@ -417,6 +424,7 @@ void setup() {
   MBserver.registerWorker(lp.getId(), WRITE_MULT_COILS, &FC_0F);
   MBserver.registerWorker(lp.getId(), READ_HOLD_REGISTER, &FC03);
   MBserver.registerWorker(lp.getId(), READ_INPUT_REGISTER, &FC04);
+  MBserver.registerWorker(lp.getId(), WRITE_HOLD_REGISTER, &FC06);
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
   MBserver.begin(Serial2);
 
@@ -424,52 +432,105 @@ void setup() {
    * load paramater from flash memory and pass it into loadHandle
    */
   LoadParamsSetting s;
-  // s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect1();
-  // s.loadOvervoltageReconnect = lp.getOvervoltageReconnect1();
-  // s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect1();
-  // s.loadUndervoltageReconnect = lp.getUndervoltageReconnect1();
-  // s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect1();
-  // s.loadOcDetectionTime = lp.getOvercurrentDetectionTime1();
-  // s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval1();
-  // s.loadShortCircuittDisconnect = lp.getShortCircuitDisconnect1();
-  // s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime1();
-  // s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval1();
-  // s.activeLow = lp.getOutputMode1();
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect1();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect1();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect1();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect1();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect1();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime1();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval1();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect1();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime1();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval1();
+  s.activeLow = lp.getOutputMode1();
   loadHandle[0].setParams(s);
 
-  // s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect2();
-  // s.loadOvervoltageReconnect = lp.getOvervoltageReconnect2();
-  // s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect2();
-  // s.loadUndervoltageReconnect = lp.getUndervoltageReconnect2();
-  // s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect2();
-  // s.loadOcDetectionTime = lp.getOvercurrentDetectionTime2();
-  // s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval2();
-  // s.loadShortCircuittDisconnect = lp.getShortCircuitDisconnect2();
-  // s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime2();
-  // s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval2();
-  // s.activeLow = lp.getOutputMode2();
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect2();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect2();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect2();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect2();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect2();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime2();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval2();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect2();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime2();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval2();
+  s.activeLow = lp.getOutputMode2();
   loadHandle[1].setParams(s);
 
-  // s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect3();
-  // s.loadOvervoltageReconnect = lp.getOvervoltageReconnect3();
-  // s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect3();
-  // s.loadUndervoltageReconnect = lp.getUndervoltageReconnect3();
-  // s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect3();
-  // s.loadOcDetectionTime = lp.getOvercurrentDetectionTime3();
-  // s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval3();
-  // s.loadShortCircuittDisconnect = lp.getShortCircuitDisconnect3();
-  // s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime3();
-  // s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval3();
-  // s.activeLow = lp.getOutputMode3();
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect3();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect3();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect3();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect3();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect3();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime3();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval3();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect3();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime3();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval3();
+  s.activeLow = lp.getOutputMode3();
   loadHandle[2].setParams(s);
 
   lastTakenTime = millis();
   lastInc = millis();
 }
 
+void updateParameter()
+{
+  LoadParamsSetting s;
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect1();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect1();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect1();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect1();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect1();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime1();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval1();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect1();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime1();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval1();
+  s.activeLow = lp.getOutputMode1();
+  loadHandle[0].setParams(s);
+  loadHandle[0].printParams();
+
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect2();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect2();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect2();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect2();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect2();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime2();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval2();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect2();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime2();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval2();
+  s.activeLow = lp.getOutputMode2();
+  loadHandle[1].setParams(s);
+  loadHandle[1].printParams();
+
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect3();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect3();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect3();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect3();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect3();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime3();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval3();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect3();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime3();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval3();
+  s.activeLow = lp.getOutputMode3();
+  loadHandle[2].setParams(s);
+  loadHandle[2].printParams();
+}
+
 void loop() {
   // put your main code here, to run repeatedly:
   systemStatus.flag.run = 1;
+
+  if (isParameterChanged)
+  {
+    updateParameter();
+    isParameterChanged = false;
+  }
+
   int raw[3];
   raw[0] = analogRead(36); // current load 1
   raw[1] = analogRead(39); // current load 2
@@ -483,40 +544,69 @@ void loop() {
 
   switch (currentState)
   {
+    case NO_VOLTAGE:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = 0;
+      }
+
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = 0;
+      }
+      
+    break;
     case UNDER_VOLTAGE:
-        for (size_t i = 0; i < 3; i++)
-        {
-          dummyVoltage[i] = random(400, 480);
-          dummyCurrent[i] = random(-800, 800);
-        }
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(400, 480);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(-800, 800);        
+      }
     break;
     case OVER_VOLTAGE:
-        for (size_t i = 0; i < 3; i++)
-        {
-          dummyVoltage[i] = random(590, 660);
-          dummyCurrent[i] = random(-800, 800);
-        }
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(590, 660);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(-800, 800);
+      }
     break;
     case OVERCURRENT:
-        for (size_t i = 0; i < 3; i++)
-        {
-          dummyVoltage[i] = random(520, 570);
-          dummyCurrent[i] = random(1000, 1500);
-        }
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(520, 570);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(1000, 1500);
+      }
     break;
     case SHORT_CIRCUIT:
-        for (size_t i = 0; i < 3; i++)
-        {
-          dummyVoltage[i] = random(520, 570);
-          dummyCurrent[i] = random(2100, 2500);
-        }
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(520, 570);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(2100, 2500);
+      }
     break;
     case NORMAL:
-        for (size_t i = 0; i < 3; i++)
-        {
-          dummyVoltage[i] = random(520, 570);
-          dummyCurrent[i] = random(-800, 800);
-        }
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(520, 570);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(-800, 800);
+      }
+    break;
+    case END:
     break;
     default:
       break;
@@ -525,7 +615,7 @@ void loop() {
   if (millis() - lastChangeState > 3000)
   {
     currentState++;
-    currentState == NORMAL? currentState = UNDER_VOLTAGE : currentState;
+    currentState == END? currentState = NO_VOLTAGE : currentState;
     lastChangeState = millis();
   }
   
@@ -537,15 +627,15 @@ void loop() {
 
   for (size_t i = 0; i < 3; i++)
   {
-    mcb[i].tick();
+    relayFeedback[i].tick();
   }
     
-  loadHandle[0].loop(dummyVoltage[0], dummyCurrent[0]);
-  loadHandle[1].loop(dummyVoltage[1], dummyCurrent[1]);
-  loadHandle[2].loop(dummyVoltage[2], dummyCurrent[2]);
-  latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
-  latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
-  latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
+  loadHandle[0].loop(dummyVoltage[3], dummyCurrent[0]);
+  loadHandle[1].loop(dummyVoltage[3], dummyCurrent[1]);
+  loadHandle[2].loop(dummyVoltage[3], dummyCurrent[2]);
+  latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]);
+  latchHandle[1].handle(loadHandle[1].getAction(), relayConnected[1]);
+  latchHandle[2].handle(loadHandle[2].getAction(), relayConnected[2]);
 
   for (size_t i = 0; i < 3; i++)
   {
@@ -560,7 +650,7 @@ void loop() {
 
   if (myCoils[6])
   {
-    ESP_LOGI(TAG, "manual");
+    // ESP_LOGI(TAG, "manual");
     for (size_t i = 0; i < 3; i++)
     {
       latchHandle[i].setManual();
@@ -578,28 +668,32 @@ void loop() {
   }
   else
   {
-    ESP_LOGI(TAG, "auto");
+    // ESP_LOGI(TAG, "auto");
     systemStatus.flag.mode = 0;
     for (size_t i = 0; i < 3; i++)
     {
       latchHandle[i].setAuto();
     }
-    feedbackStatus.flag.relayOn1Failed = latchHandle[0].isFailedOn();
-    feedbackStatus.flag.relayOff1Failed = latchHandle[0].isFailedOff();
-    feedbackStatus.flag.relayOn2Failed = latchHandle[1].isFailedOn();
-    feedbackStatus.flag.relayOff2Failed = latchHandle[1].isFailedOff();
-    feedbackStatus.flag.relayOn3Failed = latchHandle[2].isFailedOn();
-    feedbackStatus.flag.relayOff3Failed = latchHandle[2].isFailedOff();
+    feedbackStatus.flag.relayOnFailed1 = latchHandle[0].isFailedOn();
+    feedbackStatus.flag.relayOffFailed1 = latchHandle[0].isFailedOff();
+    feedbackStatus.flag.relayOnFailed2 = latchHandle[1].isFailedOn();
+    feedbackStatus.flag.relayOffFailed2 = latchHandle[1].isFailedOff();
+    feedbackStatus.flag.relayOnFailed3 = latchHandle[2].isFailedOn();
+    feedbackStatus.flag.relayOffFailed3 = latchHandle[2].isFailedOff();
   }
 
-  feedbackStatus.flag.mcb1 = mcbConnected[0];
-  feedbackStatus.flag.mcb2 = mcbConnected[1];
-  feedbackStatus.flag.mcb3 = mcbConnected[2];
+  dummyVoltage[0] > 5? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
+  dummyVoltage[1] > 5? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
+  dummyVoltage[2] > 5? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
+
+  feedbackStatus.flag.relayFeedback1 = relayConnected[0];
+  feedbackStatus.flag.relayFeedback2 = relayConnected[1];
+  feedbackStatus.flag.relayFeedback3 = relayConnected[2];
 
   buffRegs.assignLoadVoltage1(dummyVoltage[0]);
   buffRegs.assignLoadVoltage2(dummyVoltage[1]);
   buffRegs.assignLoadVoltage3(dummyVoltage[2]);
-  buffRegs.assignSystemVoltage(dummyVoltage[2]);
+  buffRegs.assignSystemVoltage(dummyVoltage[3]);
   buffRegs.assignLoadCurrent1(dummyCurrent[0]);
   buffRegs.assignLoadCurrent2(dummyCurrent[1]);
   buffRegs.assignLoadCurrent3(dummyCurrent[2]);

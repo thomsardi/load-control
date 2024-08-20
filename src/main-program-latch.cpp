@@ -54,15 +54,15 @@ struct device_pin {
   uint8_t sda = 32;
   uint8_t scl = 33;
 
-  uint8_t mcbFb1 = 27;
+  uint8_t relayFb1 = 27;
   uint8_t relayOn1 = 26;
   uint8_t relayOff1 = 25;
 
-  uint8_t mcbFb2 = 13;
+  uint8_t relayFb2 = 13;
   uint8_t relayOn2 = 18;
   uint8_t relayOff2 = 19;
   
-  uint8_t mcbFb3 = 21;
+  uint8_t relayFb3 = 21;
   uint8_t relayOn3 = 22;
   uint8_t relayOff3 = 23;
   
@@ -96,12 +96,12 @@ LatchHandle latchHandle[3];
 PulseOutput relay[6];
 uint8_t relayFailedCounter[6];
 
-OneButton mcb[3];
+OneButton relayFeedback[3];
 // OneButton buttonOn, buttonOff, buttonMode;
 
 CoilData myCoils(9);
 
-bool mcbConnected[3];
+bool relayConnected[3];
 
 bool buttonOnClicked = false;
 bool buttonOffClicked = false;
@@ -329,102 +329,62 @@ ModbusMessage FC10(ModbusMessage request) {
 }
 
 
-void mcbLongPressStart1()
+void relayFeedbackLongPressStart1()
 {
-  // ESP_LOGI(TAG, "pressed");
-  mcbConnected[0] = true;
+  ESP_LOGI(TAG, "pressed");
+  relayConnected[0] = true;
 }
 
-void mcbLongPressStop1()
+void relayFeedbackLongPressStop1()
 {
-  // ESP_LOGI(TAG, "released");
-  mcbConnected[0] = false;
+  ESP_LOGI(TAG, "released");
+  relayConnected[0] = false;
 }
 
-void mcbLongPressStart2()
+void relayFeedbackLongPressStart2()
 {
-  mcbConnected[1] = true;
+  relayConnected[1] = true;
 }
 
-void mcbLongPressStop2()
+void relayFeedbackLongPressStop2()
 {
-  mcbConnected[1] = false;
+  relayConnected[1] = false;
 }
 
-void mcbLongPressStart3()
+void relayFeedbackLongPressStart3()
 {
-  mcbConnected[2] = true;
+  relayConnected[2] = true;
 }
 
-void mcbLongPressStop3()
+void relayFeedbackLongPressStop3()
 {
-  mcbConnected[2] = false;
+  relayConnected[2] = false;
 }
-
-// void buttonOnClick()
-// {
-//   ESP_LOGI(TAG, "button on clicked\n");
-//   buttonOnClicked = true;
-// }
-
-// void buttonOffClick()
-// {
-//   ESP_LOGI(TAG, "button on clicked\n");
-//   buttonOffClicked = true;
-// }
-
-// void buttonModePress()
-// {
-//   buttonModePressed = true;
-// }
-
-// void buttonModeRelease()
-// {
-//   buttonModePressed = false;
-// }
 
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  mcb[0].setup(device_pin_t.mcbFb1, INPUT_PULLUP, true);
-  mcb[0].setDebounceMs(20);
-  mcb[0].setClickMs(50);
-  mcb[0].setPressMs(100);
-  mcb[0].attachLongPressStart(mcbLongPressStart1);
-  mcb[0].attachLongPressStop(mcbLongPressStop1);
+  relayFeedback[0].setup(device_pin_t.relayFb1, INPUT_PULLUP, true);
+  relayFeedback[0].setDebounceMs(20);
+  relayFeedback[0].setClickMs(50);
+  relayFeedback[0].setPressMs(100);
+  relayFeedback[0].attachLongPressStart(relayFeedbackLongPressStart1);
+  relayFeedback[0].attachLongPressStop(relayFeedbackLongPressStop1);
 
-  mcb[1].setup(device_pin_t.mcbFb2, INPUT_PULLUP, true);
-  mcb[1].setDebounceMs(20);
-  mcb[1].setClickMs(50);
-  mcb[1].setPressMs(100);
-  mcb[1].attachLongPressStart(mcbLongPressStart2);
-  mcb[1].attachLongPressStop(mcbLongPressStop2);
+  relayFeedback[1].setup(device_pin_t.relayFb2, INPUT_PULLUP, true);
+  relayFeedback[1].setDebounceMs(20);
+  relayFeedback[1].setClickMs(50);
+  relayFeedback[1].setPressMs(100);
+  relayFeedback[1].attachLongPressStart(relayFeedbackLongPressStart2);
+  relayFeedback[1].attachLongPressStop(relayFeedbackLongPressStop2);
 
-  mcb[2].setup(device_pin_t.mcbFb3, INPUT_PULLUP, true);
-  mcb[2].setDebounceMs(20);
-  mcb[2].setClickMs(50);
-  mcb[2].setPressMs(100);
-  mcb[2].attachLongPressStart(mcbLongPressStart3);
-  mcb[2].attachLongPressStop(mcbLongPressStop3);
-
-  // buttonOn.setup(32, INPUT_PULLUP, true);
-  // buttonOn.setDebounceMs(20);
-  // buttonOn.setClickMs(50);
-  // buttonOn.setPressMs(100);
-  // buttonOn.attachClick(buttonOnClick);
-  // buttonOff.setup(33, INPUT_PULLUP, true);
-  // buttonOff.setDebounceMs(20);
-  // buttonOff.setClickMs(50);
-  // buttonOff.setPressMs(100);
-  // buttonOff.attachClick(buttonOffClick);
-
-  // buttonMode.setup(4, INPUT_PULLUP, true);
-  // buttonMode.setDebounceMs(20);
-  // buttonMode.setClickMs(50);
-  // buttonMode.setPressMs(100);
-  // buttonMode.attachLongPressStart(buttonModePress);
-  // buttonMode.attachLongPressStop(buttonModeRelease);
+  relayFeedback[2].setup(device_pin_t.relayFb3, INPUT_PULLUP, true);
+  relayFeedback[2].setDebounceMs(20);
+  relayFeedback[2].setClickMs(50);
+  relayFeedback[2].setPressMs(100);
+  relayFeedback[2].attachLongPressStart(relayFeedbackLongPressStart3);
+  relayFeedback[2].attachLongPressStop(relayFeedbackLongPressStop3);
 
   latchHandle[0].setup(device_pin_t.relayOn1, device_pin_t.relayOff1, 100, 100);
   latchHandle[1].setup(device_pin_t.relayOn2, device_pin_t.relayOff2, 100, 100);
@@ -526,7 +486,7 @@ void loop() {
 
   for (size_t i = 0; i < 3; i++)
   {
-    mcb[i].tick();
+    relayFeedback[i].tick();
   }
     
   // buttonOn.tick();
@@ -535,9 +495,9 @@ void loop() {
   loadHandle[0].loop(loadVolts, current[0]);
   loadHandle[1].loop(loadVolts, current[1]);
   loadHandle[2].loop(loadVolts, current[2]);
-  latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
-  latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
-  latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
+  latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]);
+  latchHandle[1].handle(loadHandle[1].getAction(), relayConnected[1]);
+  latchHandle[2].handle(loadHandle[2].getAction(), relayConnected[2]);
 
   // for (size_t i = 0; i < 3; i++)
   // {
@@ -582,17 +542,21 @@ void loop() {
     {
       latchHandle[i].setAuto();
     }
-    feedbackStatus.flag.relayOn1Failed = latchHandle[0].isFailedOn();
-    feedbackStatus.flag.relayOff1Failed = latchHandle[0].isFailedOff();
-    feedbackStatus.flag.relayOn2Failed = latchHandle[1].isFailedOn();
-    feedbackStatus.flag.relayOff2Failed = latchHandle[1].isFailedOff();
-    feedbackStatus.flag.relayOn3Failed = latchHandle[2].isFailedOn();
-    feedbackStatus.flag.relayOff3Failed = latchHandle[2].isFailedOff();
+    feedbackStatus.flag.relayOnFailed1 = latchHandle[0].isFailedOn();
+    feedbackStatus.flag.relayOffFailed1 = latchHandle[0].isFailedOff();
+    feedbackStatus.flag.relayOnFailed2 = latchHandle[1].isFailedOn();
+    feedbackStatus.flag.relayOffFailed2 = latchHandle[1].isFailedOff();
+    feedbackStatus.flag.relayOnFailed3 = latchHandle[2].isFailedOn();
+    feedbackStatus.flag.relayOffFailed3 = latchHandle[2].isFailedOff();
   }
 
-  feedbackStatus.flag.mcb1 = mcbConnected[0];
-  feedbackStatus.flag.mcb2 = mcbConnected[1];
-  feedbackStatus.flag.mcb3 = mcbConnected[2];
+  loadVolts > 5? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
+  loadVolts > 5? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
+  loadVolts > 5? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
+
+  feedbackStatus.flag.relayFeedback1 = relayConnected[0];
+  feedbackStatus.flag.relayFeedback2 = relayConnected[1];
+  feedbackStatus.flag.relayFeedback3 = relayConnected[2];
 
   buffRegs.assignLoadVoltage1(loadVolts);
   buffRegs.assignLoadVoltage2(loadVolts);

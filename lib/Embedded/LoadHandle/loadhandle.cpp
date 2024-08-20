@@ -28,6 +28,21 @@ void LoadHandle::setParams(const LoadParamsSetting &load_params_t)
     _isActiveLow = load_params_t.activeLow;
 }
 
+void LoadHandle::printParams()
+{
+    ESP_LOGI(_TAG, "overvoltage disconnect : %d\n", _loadOvervoltageDisconnect);
+    ESP_LOGI(_TAG, "overvoltage reconnect : %d\n", _loadOvervoltageReconnect);
+    ESP_LOGI(_TAG, "undervoltage disconnect : %d\n", _loadUndervoltageDisconnect);
+    ESP_LOGI(_TAG, "undervoltage reconnect : %d\n", _loadUndervoltageReconnect);
+    ESP_LOGI(_TAG, "overcurrent disconnect : %d\n", _loadOvercurrentDisconnect);
+    ESP_LOGI(_TAG, "overcurrent detection time : %d\n", _loadOcDetectionTime);
+    ESP_LOGI(_TAG, "overcurrent reconnect time : %d\n", _loadOcReconnectTime);
+    ESP_LOGI(_TAG, "short circuit disconnect : %d\n", _loadShortCircuitDisconnect);
+    ESP_LOGI(_TAG, "short circuit detection time : %d\n", _loadShortCircuitDetectionTime);
+    ESP_LOGI(_TAG, "short circuit reconnect time : %d\n", _loadShortCircuitReconnectTime);
+    ESP_LOGI(_TAG, "output mode : %d\n", _isActiveLow);
+}
+
 /**
  * Main loop
  * @brief   call this method periodically to handle load according to voltage and current
