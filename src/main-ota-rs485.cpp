@@ -13,7 +13,7 @@
 #include <latchhandle.h>
 #include <pulseoutput.h>
 #include <loaddefs.h>
-#include <SerialOta.h>
+#include <ModbusOta.h>
 #include <Update.h>
 #include <flashz.hpp>
 
@@ -29,7 +29,7 @@
 
 const char* TAG = "load-control";
 
-QueueHandle_t receiverQueue = xQueueCreate(4, sizeof(OtaData));
+QueueHandle_t receiverQueue = xQueueCreate(4, sizeof(MbusOTA::OtaData));
 TaskHandle_t recvOtaTaskHandle;
 
 /**
@@ -60,15 +60,15 @@ struct device_pin {
   uint8_t sda = 32;
   uint8_t scl = 33;
 
-  uint8_t mcbFb1 = 27;
+  uint8_t relayFb1 = 27;
   uint8_t relayOn1 = 26;
   uint8_t relayOff1 = 25;
 
-  uint8_t mcbFb2 = 13;
+  uint8_t relayFb2 = 13;
   uint8_t relayOn2 = 18;
   uint8_t relayOff2 = 19;
   
-  uint8_t mcbFb3 = 21;
+  uint8_t relayFb3 = 21;
   uint8_t relayOn3 = 22;
   uint8_t relayOff3 = 23;
   
@@ -102,24 +102,20 @@ LatchHandle latchHandle[3];
 PulseOutput relay[6];
 uint8_t relayFailedCounter[6];
 
-OneButton mcb[3];
-// OneButton buttonOn, buttonOff, buttonMode;
+OneButton relayFeedback[3];
 
 CoilData myCoils(9);
 
-bool mcbConnected[3];
+bool relayConnected[3];
 
-bool buttonOnClicked = false;
-bool buttonOffClicked = false;
-bool buttonModePressed = false;
+bool isParameterChanged = false;
 bool isRestart = false;
 
-uint16_t testCurrent = 0;
+int16_t dummyVoltage[4];
+int16_t dummyCurrent[3];
 
 unsigned long lastInc = 0;
 unsigned long lastTakenTime = 0;
-
-unsigned long lastRelayFailedCheck[0];
 
 // FC_01: act on 0x01 requests - READ_COIL
 ModbusMessage FC_01(ModbusMessage request) {
@@ -253,6 +249,7 @@ ModbusMessage FC06(ModbusMessage request) {
     lp.getAllParameter(paramRegs);
     // Looks okay. Set up message with serverID, FC, address and data
     response.add(request.getServerID(), request.getFunctionCode(), address, data);
+    isParameterChanged = true;
   } else {
     // No, either address or words are outside the limits. Set up error response.
     response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
@@ -310,62 +307,6 @@ ModbusMessage FC10(ModbusMessage request) {
   request.get(4, words);
   uint16_t index = request.get(6, bytes);
 
-  bool _isAddressRecognized = true;
-  OtaData buff;
-
-  switch (address)
-  {
-  case 0x2000: //upload firmware
-    buff.status = FlagStatus::START_FW;
-    break;
-  case 0x2001: //upload flash
-    buff.status = FlagStatus::START_FLASH;
-    break;
-  case 0x2002: //upload compressed firmware
-    buff.status = FlagStatus::PROCESS;
-    break;
-  case 0x2003: //upload compressed flash
-    buff.status = FlagStatus::END;
-    break;
-  case 0x2004: //upload compressed flash
-    buff.status = FlagStatus::START_FW_COMPRESSED;
-    break;
-  case 0x2005: //upload compressed flash
-    buff.status = FlagStatus::START_FLASH_COMPRESSED;
-    break;
-  case 0x2006: //upload compressed flash
-    buff.status = FlagStatus::PROCESS_COMPRESSED;
-    break;
-  case 0x2007: //upload compressed flash
-    buff.status = FlagStatus::END_COMPRESSED;
-    break;
-  default:
-    _isAddressRecognized = false;
-    break;
-  }
-
-  // Address and words valid? We assume 10 registers here for demo
-  if (_isAddressRecognized && words &&  words <= 64) {
-    for (size_t i = 0; i < words; i++)
-    {
-      uint16_t data = 0;
-      index = request.get(index, data);
-      buff.data[i] = data & 0xFF;
-      buff.currentSize++;
-    }
-    if (xQueueSend(receiverQueue, &buff, 1) == pdTRUE)
-    {
-      ESP_LOGI(TAG, "data passed\n");
-      response.add(request.getServerID(), request.getFunctionCode(), address, words);
-    }
-    else
-    {
-      response.setError(request.getServerID(), request.getFunctionCode(), SERVER_DEVICE_BUSY);
-    }
-    // Looks okay. Set up message with serverID, FC and length of data
-    return response; 
-  }
-
   uint16_t offset = 0x1000;
 
   // Address and words valid? We assume 10 registers here for demo
@@ -384,6 +325,8 @@ ModbusMessage FC10(ModbusMessage request) {
     
     // Looks okay. Set up message with serverID, FC and length of data
     response.add(request.getServerID(), request.getFunctionCode(), address, words);
+
+    isParameterChanged = true;
   } else {
     // No, either address or words are outside the limits. Set up error response.
     response.setError(request.getServerID(), request.getFunctionCode(), ILLEGAL_DATA_ADDRESS);
@@ -395,7 +338,7 @@ ModbusMessage FC10(ModbusMessage request) {
 ModbusMessage FC41(ModbusMessage request) {
   uint16_t address;           // requested register address
   uint16_t words;             // requested number of registers
-  uint8_t bytesCount;
+  uint16_t bytesCount;
   ModbusMessage response;     // response message to be sent back
 
   // get request values
@@ -404,22 +347,33 @@ ModbusMessage FC41(ModbusMessage request) {
   uint16_t index = request.get(6, bytesCount);
 
   bool _isAddressRecognized = true;
-  uint16_t offset = 0x2000;
-  OtaData buff;
+  MbusOTA::OtaData buff;
 
   switch (address)
   {
-  case 0x2000: //upload firmware
-    buff.status = FlagStatus::START_FW;
+  case MbusOTA::Address::START_FW_OTA : //upload firmware
+    buff.status = MbusOTA::FlagStatus::START_FW;
     break;
-  case 0x2001: //upload flash
-    buff.status = FlagStatus::START_FLASH;
+  case MbusOTA::Address::START_FLASH_OTA : //upload flash
+    buff.status = MbusOTA::FlagStatus::START_FLASH;
     break;
-  case 0x2002: //upload compressed firmware
-    buff.status = FlagStatus::START_FW_COMPRESSED;
+  case MbusOTA::Address::TRANSMIT_OTA : //upload compressed firmware
+    buff.status = MbusOTA::FlagStatus::TRANSMIT;
     break;
-  case 0x2003: //upload compressed flash
-    buff.status = FlagStatus::START_FLASH_COMPRESSED;
+  case MbusOTA::Address::END_OTA : //upload compressed flash
+    buff.status = MbusOTA::FlagStatus::END;
+    break;
+  case MbusOTA::Address::START_COMPRESSED_FW_OTA : //upload firmware
+    buff.status = MbusOTA::FlagStatus::START_FW_COMPRESSED;
+    break;
+  case MbusOTA::Address::START_COMPRESSED_FLASH_OTA : //upload flash
+    buff.status = MbusOTA::FlagStatus::START_FLASH_COMPRESSED;
+    break;
+  case MbusOTA::Address::TRANSMIT_COMPRESSED_OTA : //upload compressed firmware
+    buff.status = MbusOTA::FlagStatus::TRANSMIT_COMPRESSED;
+    break;
+  case MbusOTA::Address::END_COMPRESSED_OTA : //upload compressed flash
+    buff.status = MbusOTA::FlagStatus::END_COMPRESSED;
     break;
   default:
     _isAddressRecognized = false;
@@ -427,7 +381,7 @@ ModbusMessage FC41(ModbusMessage request) {
   }
 
   // Address and words valid? We assume 10 registers here for demo
-  if (_isAddressRecognized && words &&  words <= 64) {
+  if (_isAddressRecognized && bytesCount && bytesCount <= OTA_BUFFER_SIZE) {
     
     for (size_t i = 0; i < bytesCount; i++)
     {
@@ -440,6 +394,7 @@ ModbusMessage FC41(ModbusMessage request) {
     {
       ESP_LOGI(TAG, "data passed\n");
       response.add(request.getServerID(), request.getFunctionCode(), address, words);
+      ESP_LOGI(TAG, "response size : %d\n", response.size());
     }
     else
     {
@@ -454,59 +409,11 @@ ModbusMessage FC41(ModbusMessage request) {
   return response;
 }
 
-void mcbLongPressStart1()
-{
-  // ESP_LOGI(TAG, "pressed");
-  mcbConnected[0] = true;
+// FC41: worker do serve Modbus function code 0x41 (START_UPLOAD)
+void sniffer(ModbusMessage request) {
+  ESP_LOGI(TAG, "sniffer");
+  ESP_LOG_BUFFER_HEXDUMP(TAG, request.data(), request.size(), ESP_LOG_INFO);
 }
-
-void mcbLongPressStop1()
-{
-  // ESP_LOGI(TAG, "released");
-  mcbConnected[0] = false;
-}
-
-void mcbLongPressStart2()
-{
-  mcbConnected[1] = true;
-}
-
-void mcbLongPressStop2()
-{
-  mcbConnected[1] = false;
-}
-
-void mcbLongPressStart3()
-{
-  mcbConnected[2] = true;
-}
-
-void mcbLongPressStop3()
-{
-  mcbConnected[2] = false;
-}
-
-// void buttonOnClick()
-// {
-//   ESP_LOGI(TAG, "button on clicked\n");
-//   buttonOnClicked = true;
-// }
-
-// void buttonOffClick()
-// {
-//   ESP_LOGI(TAG, "button on clicked\n");
-//   buttonOffClicked = true;
-// }
-
-// void buttonModePress()
-// {
-//   buttonModePressed = true;
-// }
-
-// void buttonModeRelease()
-// {
-//   buttonModePressed = false;
-// }
 
 void recvSerialOta(void * pvParameters)
 {
@@ -516,7 +423,7 @@ void recvSerialOta(void * pvParameters)
 
   while (1)
   {
-    OtaData buff;
+    MbusOTA::OtaData buff;
     if (xQueueReceive(receiverQueue, &buff, portMAX_DELAY) == pdTRUE)
     {
       size_t bytesWritten = 0;
@@ -525,125 +432,125 @@ void recvSerialOta(void * pvParameters)
       // print_hex_array(_TAG, buff.data, buff.currentSize);
       switch (buff.status)
       {
-      case FlagStatus::START_FW :
+      case MbusOTA::FlagStatus::START_FW :
         ESP_LOGI(_TAG, "Start firmware upload\n");
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        Update.abort();
-        if (Update.begin())
-        {
-          ESP_LOGI(_TAG, "success init update class");
-        }
-        else
-        {
-          Update.abort();
-          ESP_LOGI(_TAG, "failed init update class");
-        }
-        bytesWritten = Update.write(buff.data, buff.currentSize); 
-        totalSize += bytesWritten;
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // Update.abort();
+        // if (Update.begin())
+        // {
+        //   ESP_LOGI(_TAG, "success init update class");
+        // }
+        // else
+        // {
+        //   Update.abort();
+        //   ESP_LOGI(_TAG, "failed init update class");
+        // }
+        // bytesWritten = Update.write(buff.data, buff.currentSize); 
+        // totalSize += bytesWritten;
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
         break;
-      case FlagStatus::START_FW_COMPRESSED :
+      case MbusOTA::FlagStatus::START_FW_COMPRESSED :
         ESP_LOGI(_TAG, "Start firmware compressed upload\n");
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        fz.abortz();
-        if (fz.beginz())
-        {
-          ESP_LOGI(_TAG, "success init flashz class");
-        }
-        else
-        {
-          fz.abortz();
-          ESP_LOGI(_TAG, "failed init flashz class");
-        }
-        bytesWritten = fz.writez(buff.data, buff.currentSize, false); 
-        totalSize += bytesWritten;
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // fz.abortz();
+        // if (fz.beginz())
+        // {
+        //   ESP_LOGI(_TAG, "success init flashz class");
+        // }
+        // else
+        // {
+        //   fz.abortz();
+        //   ESP_LOGI(_TAG, "failed init flashz class");
+        // }
+        // bytesWritten = fz.writez(buff.data, buff.currentSize, false); 
+        // totalSize += bytesWritten;
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
         break;
-      case FlagStatus::START_FLASH :
+      case MbusOTA::FlagStatus::START_FLASH :
         ESP_LOGI(_TAG, "Start flash upload\n");
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        Update.abort();
-        if (Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS))
-        {
-          ESP_LOGI(_TAG, "success init update class");
-        }
-        else
-        {
-          Update.abort();
-          ESP_LOGI(_TAG, "failed init update class");
-        }
-        bytesWritten = Update.write(buff.data, buff.currentSize); 
-        totalSize += bytesWritten;
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // Update.abort();
+        // if (Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS))
+        // {
+        //   ESP_LOGI(_TAG, "success init update class");
+        // }
+        // else
+        // {
+        //   Update.abort();
+        //   ESP_LOGI(_TAG, "failed init update class");
+        // }
+        // bytesWritten = Update.write(buff.data, buff.currentSize); 
+        // totalSize += bytesWritten;
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
         break;
-      case FlagStatus::START_FLASH_COMPRESSED :
+      case MbusOTA::FlagStatus::START_FLASH_COMPRESSED :
         ESP_LOGI(_TAG, "Start flash compressed upload\n");
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        fz.abortz();
-        if (fz.beginz(UPDATE_SIZE_UNKNOWN, U_SPIFFS))
-        {
-          ESP_LOGI(_TAG, "success init flashz class");
-        }
-        else
-        {
-          fz.abortz();
-          ESP_LOGI(_TAG, "failed init flashz class");
-        }
-        bytesWritten = fz.writez(buff.data, buff.currentSize, false); 
-        totalSize += bytesWritten;
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // fz.abortz();
+        // if (fz.beginz(UPDATE_SIZE_UNKNOWN, U_SPIFFS))
+        // {
+        //   ESP_LOGI(_TAG, "success init flashz class");
+        // }
+        // else
+        // {
+        //   fz.abortz();
+        //   ESP_LOGI(_TAG, "failed init flashz class");
+        // }
+        // bytesWritten = fz.writez(buff.data, buff.currentSize, false); 
+        // totalSize += bytesWritten;
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
         break;
-      case FlagStatus::PROCESS :
+      case MbusOTA::FlagStatus::TRANSMIT :
         ESP_LOGI(_TAG, "writing data\n");  
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        bytesWritten = Update.write(buff.data, buff.currentSize);
-        totalSize += bytesWritten;
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);    
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // bytesWritten = Update.write(buff.data, buff.currentSize);
+        // totalSize += bytesWritten;
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);    
         break;
-      case FlagStatus::PROCESS_COMPRESSED :
+      case MbusOTA::FlagStatus::TRANSMIT_COMPRESSED :
         ESP_LOGI(_TAG, "writing compressed data\n");  
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        bytesWritten = fz.writez(buff.data, buff.currentSize, false);
-        totalSize += bytesWritten;
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);    
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // bytesWritten = fz.writez(buff.data, buff.currentSize, false);
+        // totalSize += bytesWritten;
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);    
         break;
-      case FlagStatus::END :
+      case MbusOTA::FlagStatus::END :
         ESP_LOGI(_TAG, "final data\n");
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        isRestart = true;
-        totalSize += buff.currentSize;
-        bytesWritten = Update.write(buff.data, buff.currentSize);
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
-        ESP_LOGI(_TAG, "total %d bytes wrote\n", totalSize);
-        if (Update.end(true))
-        {
-          ESP_LOGI(_TAG, "Success upload ota\n");
-          isRestart = true;
-        }
-        else
-        {
-          ESP_LOGI(_TAG, "Failed upload ota\n");
-        }                
-        totalSize = 0;
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // isRestart = true;
+        // totalSize += buff.currentSize;
+        // bytesWritten = Update.write(buff.data, buff.currentSize);
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
+        // ESP_LOGI(_TAG, "total %d bytes wrote\n", totalSize);
+        // if (Update.end(true))
+        // {
+        //   ESP_LOGI(_TAG, "Success upload ota\n");
+        //   isRestart = true;
+        // }
+        // else
+        // {
+        //   ESP_LOGI(_TAG, "Failed upload ota\n");
+        // }                
+        // totalSize = 0;
         break;
-      case FlagStatus::END_COMPRESSED :
+      case MbusOTA::FlagStatus::END_COMPRESSED :
         ESP_LOGI(_TAG, "final compressed data\n");
-        // ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
-        isRestart = true;
-        totalSize += buff.currentSize;
-        bytesWritten = fz.writez(buff.data, buff.currentSize, true);
-        ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
-        ESP_LOGI(_TAG, "total %d bytes wrote\n", totalSize);
-        if (fz.endz(true))
-        {
-          ESP_LOGI(_TAG, "Success upload compressed ota\n");
-          isRestart = true;
-        }
-        else
-        {
-          ESP_LOGI(_TAG, "Failed upload compressed ota\n");
-        }                
-        totalSize = 0;
+        ESP_LOG_BUFFER_HEXDUMP(_TAG, buff.data, buff.currentSize, ESP_LOG_INFO);
+        // isRestart = true;
+        // totalSize += buff.currentSize;
+        // bytesWritten = fz.writez(buff.data, buff.currentSize, true);
+        // ESP_LOGI(_TAG, "wrote %d bytes\n", bytesWritten);
+        // ESP_LOGI(_TAG, "total %d bytes wrote\n", totalSize);
+        // if (fz.endz(true))
+        // {
+        //   ESP_LOGI(_TAG, "Success upload compressed ota\n");
+        //   isRestart = true;
+        // }
+        // else
+        // {
+        //   ESP_LOGI(_TAG, "Failed upload compressed ota\n");
+        // }                
+        // totalSize = 0;
         break;
       default:
         break;
@@ -652,50 +559,62 @@ void recvSerialOta(void * pvParameters)
   }
 }
 
+void relayFeedbackLongPressStart1()
+{
+  ESP_LOGI(TAG, "pressed");
+  relayConnected[0] = true;
+}
+
+void relayFeedbackLongPressStop1()
+{
+  ESP_LOGI(TAG, "released");
+  relayConnected[0] = false;
+}
+
+void relayFeedbackLongPressStart2()
+{
+  relayConnected[1] = true;
+}
+
+void relayFeedbackLongPressStop2()
+{
+  relayConnected[1] = false;
+}
+
+void relayFeedbackLongPressStart3()
+{
+  relayConnected[2] = true;
+}
+
+void relayFeedbackLongPressStop3()
+{
+  relayConnected[2] = false;
+}
 
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
-  xTaskCreate(recvSerialOta, "OTA recv Task", 8192, NULL, 6, &recvOtaTaskHandle);
 
-  mcb[0].setup(device_pin_t.mcbFb1, INPUT_PULLUP, true);
-  mcb[0].setDebounceMs(20);
-  mcb[0].setClickMs(50);
-  mcb[0].setPressMs(100);
-  mcb[0].attachLongPressStart(mcbLongPressStart1);
-  mcb[0].attachLongPressStop(mcbLongPressStop1);
+  relayFeedback[0].setup(device_pin_t.relayFb1, INPUT_PULLUP, true);
+  relayFeedback[0].setDebounceMs(20);
+  relayFeedback[0].setClickMs(50);
+  relayFeedback[0].setPressMs(100);
+  relayFeedback[0].attachLongPressStart(relayFeedbackLongPressStart1);
+  relayFeedback[0].attachLongPressStop(relayFeedbackLongPressStop1);
 
-  mcb[1].setup(device_pin_t.mcbFb2, INPUT_PULLUP, true);
-  mcb[1].setDebounceMs(20);
-  mcb[1].setClickMs(50);
-  mcb[1].setPressMs(100);
-  mcb[1].attachLongPressStart(mcbLongPressStart2);
-  mcb[1].attachLongPressStop(mcbLongPressStop2);
+  relayFeedback[1].setup(device_pin_t.relayFb2, INPUT_PULLUP, true);
+  relayFeedback[1].setDebounceMs(20);
+  relayFeedback[1].setClickMs(50);
+  relayFeedback[1].setPressMs(100);
+  relayFeedback[1].attachLongPressStart(relayFeedbackLongPressStart2);
+  relayFeedback[1].attachLongPressStop(relayFeedbackLongPressStop2);
 
-  mcb[2].setup(device_pin_t.mcbFb3, INPUT_PULLUP, true);
-  mcb[2].setDebounceMs(20);
-  mcb[2].setClickMs(50);
-  mcb[2].setPressMs(100);
-  mcb[2].attachLongPressStart(mcbLongPressStart3);
-  mcb[2].attachLongPressStop(mcbLongPressStop3);
-
-  // buttonOn.setup(32, INPUT_PULLUP, true);
-  // buttonOn.setDebounceMs(20);
-  // buttonOn.setClickMs(50);
-  // buttonOn.setPressMs(100);
-  // buttonOn.attachClick(buttonOnClick);
-  // buttonOff.setup(33, INPUT_PULLUP, true);
-  // buttonOff.setDebounceMs(20);
-  // buttonOff.setClickMs(50);
-  // buttonOff.setPressMs(100);
-  // buttonOff.attachClick(buttonOffClick);
-
-  // buttonMode.setup(4, INPUT_PULLUP, true);
-  // buttonMode.setDebounceMs(20);
-  // buttonMode.setClickMs(50);
-  // buttonMode.setPressMs(100);
-  // buttonMode.attachLongPressStart(buttonModePress);
-  // buttonMode.attachLongPressStop(buttonModeRelease);
+  relayFeedback[2].setup(device_pin_t.relayFb3, INPUT_PULLUP, true);
+  relayFeedback[2].setDebounceMs(20);
+  relayFeedback[2].setClickMs(50);
+  relayFeedback[2].setPressMs(100);
+  relayFeedback[2].attachLongPressStart(relayFeedbackLongPressStart3);
+  relayFeedback[2].attachLongPressStop(relayFeedbackLongPressStop3);
 
   latchHandle[0].setup(device_pin_t.relayOn1, device_pin_t.relayOff1, 100, 100);
   latchHandle[1].setup(device_pin_t.relayOn2, device_pin_t.relayOff2, 100, 100);
@@ -724,51 +643,53 @@ void setup() {
   MBserver.registerWorker(lp.getId(), WRITE_MULT_COILS, &FC_0F);
   MBserver.registerWorker(lp.getId(), READ_HOLD_REGISTER, &FC03);
   MBserver.registerWorker(lp.getId(), READ_INPUT_REGISTER, &FC04);
+  MBserver.registerWorker(lp.getId(), WRITE_HOLD_REGISTER, &FC06);
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
-
+  MBserver.registerWorker(lp.getId(), USER_DEFINED_41, &FC41);
+  MBserver.registerSniffer(&sniffer);
   MBserver.begin(Serial2);
 
   /**
    * load paramater from flash memory and pass it into loadHandle
    */
   LoadParamsSetting s;
-  // s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect1();
-  // s.loadOvervoltageReconnect = lp.getOvervoltageReconnect1();
-  // s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect1();
-  // s.loadUndervoltageReconnect = lp.getUndervoltageReconnect1();
-  // s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect1();
-  // s.loadOcDetectionTime = lp.getOvercurrentDetectionTime1();
-  // s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval1();
-  // s.loadShortCircuittDisconnect = lp.getShortCircuitDisconnect1();
-  // s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime1();
-  // s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval1();
-  // s.activeLow = lp.getOutputMode1();
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect1();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect1();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect1();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect1();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect1();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime1();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval1();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect1();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime1();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval1();
+  s.activeLow = lp.getOutputMode1();
   loadHandle[0].setParams(s);
 
-  // s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect2();
-  // s.loadOvervoltageReconnect = lp.getOvervoltageReconnect2();
-  // s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect2();
-  // s.loadUndervoltageReconnect = lp.getUndervoltageReconnect2();
-  // s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect2();
-  // s.loadOcDetectionTime = lp.getOvercurrentDetectionTime2();
-  // s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval2();
-  // s.loadShortCircuittDisconnect = lp.getShortCircuitDisconnect2();
-  // s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime2();
-  // s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval2();
-  // s.activeLow = lp.getOutputMode2();
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect2();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect2();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect2();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect2();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect2();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime2();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval2();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect2();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime2();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval2();
+  s.activeLow = lp.getOutputMode2();
   loadHandle[1].setParams(s);
 
-  // s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect3();
-  // s.loadOvervoltageReconnect = lp.getOvervoltageReconnect3();
-  // s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect3();
-  // s.loadUndervoltageReconnect = lp.getUndervoltageReconnect3();
-  // s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect3();
-  // s.loadOcDetectionTime = lp.getOvercurrentDetectionTime3();
-  // s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval3();
-  // s.loadShortCircuittDisconnect = lp.getShortCircuitDisconnect3();
-  // s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime3();
-  // s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval3();
-  // s.activeLow = lp.getOutputMode3();
+  s.loadOverVoltageDisconnect = lp.getOvervoltageDisconnect3();
+  s.loadOvervoltageReconnect = lp.getOvervoltageReconnect3();
+  s.loadUndervoltageDisconnect = lp.getUndervoltageDisconnect3();
+  s.loadUndervoltageReconnect = lp.getUndervoltageReconnect3();
+  s.loadOvercurrentDisconnect = lp.getOvercurrentDisconnect3();
+  s.loadOcDetectionTime = lp.getOvercurrentDetectionTime3();
+  s.loadOcReconnectTime = lp.getOvercurrentReconnectInterval3();
+  s.loadShortCircuitDisconnect = lp.getShortCircuitDisconnect3();
+  s.loadShortCircuitDetectionTime = lp.getShortCircuitDetectionTime3();
+  s.loadShortCircuitReconnectTime = lp.getShortCircuitReconnectInterval3();
+  s.activeLow = lp.getOutputMode3();
   loadHandle[2].setParams(s);
 
   lastTakenTime = millis();
@@ -798,18 +719,15 @@ void loop() {
 
   for (size_t i = 0; i < 3; i++)
   {
-    mcb[i].tick();
+    relayFeedback[i].tick();
   }
     
-  // buttonOn.tick();
-  // buttonOff.tick();
-  // buttonMode.tick();
   loadHandle[0].loop(loadVolts, current[0]);
   loadHandle[1].loop(loadVolts, current[1]);
   loadHandle[2].loop(loadVolts, current[2]);
-  latchHandle[0].handle(loadHandle[0].getAction(), mcbConnected[0]);
-  latchHandle[1].handle(loadHandle[1].getAction(), mcbConnected[1]);
-  latchHandle[2].handle(loadHandle[2].getAction(), mcbConnected[2]);
+  latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]);
+  latchHandle[1].handle(loadHandle[1].getAction(), relayConnected[1]);
+  latchHandle[2].handle(loadHandle[2].getAction(), relayConnected[2]);
 
   // for (size_t i = 0; i < 3; i++)
   // {
@@ -848,31 +766,35 @@ void loop() {
   }
   else
   {
-    ESP_LOGI(TAG, "auto");
+    // ESP_LOGI(TAG, "auto");
     systemStatus.flag.mode = 0;
     for (size_t i = 0; i < 3; i++)
     {
       latchHandle[i].setAuto();
     }
-    feedbackStatus.flag.relayOn1Failed = latchHandle[0].isFailedOn();
-    feedbackStatus.flag.relayOff1Failed = latchHandle[0].isFailedOff();
-    feedbackStatus.flag.relayOn2Failed = latchHandle[1].isFailedOn();
-    feedbackStatus.flag.relayOff2Failed = latchHandle[1].isFailedOff();
-    feedbackStatus.flag.relayOn3Failed = latchHandle[2].isFailedOn();
-    feedbackStatus.flag.relayOff3Failed = latchHandle[2].isFailedOff();
+    feedbackStatus.flag.relayOnFailed1 = latchHandle[0].isFailedOn();
+    feedbackStatus.flag.relayOffFailed1 = latchHandle[0].isFailedOff();
+    feedbackStatus.flag.relayOnFailed2 = latchHandle[1].isFailedOn();
+    feedbackStatus.flag.relayOffFailed2 = latchHandle[1].isFailedOff();
+    feedbackStatus.flag.relayOnFailed3 = latchHandle[2].isFailedOn();
+    feedbackStatus.flag.relayOffFailed3 = latchHandle[2].isFailedOff();
   }
 
-  feedbackStatus.flag.mcb1 = mcbConnected[0];
-  feedbackStatus.flag.mcb2 = mcbConnected[1];
-  feedbackStatus.flag.mcb3 = mcbConnected[2];
+  dummyVoltage[0] > 5? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
+  dummyVoltage[1] > 5? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
+  dummyVoltage[2] > 5? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
 
-  buffRegs.assignLoadVoltage1(loadVolts);
-  buffRegs.assignLoadVoltage2(loadVolts);
-  buffRegs.assignLoadVoltage3(loadVolts);
-  buffRegs.assignSystemVoltage(loadVolts);
-  buffRegs.assignLoadCurrent1(current[0]);
-  buffRegs.assignLoadCurrent2(current[1]);
-  buffRegs.assignLoadCurrent3(current[2]);
+  feedbackStatus.flag.relayFeedback1 = relayConnected[0];
+  feedbackStatus.flag.relayFeedback2 = relayConnected[1];
+  feedbackStatus.flag.relayFeedback3 = relayConnected[2];
+
+  buffRegs.assignLoadVoltage1(dummyVoltage[0]);
+  buffRegs.assignLoadVoltage2(dummyVoltage[1]);
+  buffRegs.assignLoadVoltage3(dummyVoltage[2]);
+  buffRegs.assignSystemVoltage(dummyVoltage[3]);
+  buffRegs.assignLoadCurrent1(dummyCurrent[0]);
+  buffRegs.assignLoadCurrent2(dummyCurrent[1]);
+  buffRegs.assignLoadCurrent3(dummyCurrent[2]);
   buffRegs.assignFlag1(loadHandle[0].getStatus());
   buffRegs.assignFlag2(loadHandle[1].getStatus());
   buffRegs.assignFlag3(loadHandle[2].getStatus());
@@ -885,8 +807,8 @@ void loop() {
     myCoils.set(8, false);
     lp.reset();
   }
-  
-  if (myCoils[7] || isRestart)
+
+  if (myCoils[7])
   {
     ESP_LOGI(TAG, "restart");
     myCoils.set(7, false);

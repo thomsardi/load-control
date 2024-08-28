@@ -92,7 +92,7 @@ loadParamRegister paramRegs;
 
 LoadHandle loadHandle[3];
 
-LatchHandle latchHandle[3];
+LatchHandleAsync latchHandle[3];
 
 /**
  * relay[0] -> Relay 1 ON
@@ -397,9 +397,19 @@ void setup() {
   relayFeedback[2].attachLongPressStart(relayFeedbackLongPressStart3);
   relayFeedback[2].attachLongPressStop(relayFeedbackLongPressStop3);
 
-  latchHandle[0].setup(device_pin_t.relayOn1, device_pin_t.relayOff1, 100, 100);
-  latchHandle[1].setup(device_pin_t.relayOn2, device_pin_t.relayOff2, 100, 100);
-  latchHandle[2].setup(device_pin_t.relayOn3, device_pin_t.relayOff3, 100, 100);
+  Latch::latch_async_config_t config;
+  config.pinOn = device_pin_t.relayOn1;
+  config.pinOff = device_pin_t.relayOff1;
+  config.onDuration = 100;
+  config.offDuration = 100;
+
+  latchHandle[0].setup(config);
+  config.pinOn = device_pin_t.relayOn2;
+  config.pinOff = device_pin_t.relayOff2;
+  latchHandle[1].setup(config);
+  config.pinOn = device_pin_t.relayOn3;
+  config.pinOff = device_pin_t.relayOff3;
+  latchHandle[2].setup(config);
 
   Serial.begin(115200);
   lp.begin("load1");

@@ -70,9 +70,6 @@ struct device_pin {
   uint8_t tx2 = 17;
 } device_pin_t;
 
-QueueHandle_t signalQueue = xQueueCreate(12, sizeof(Latch::latch_sync_signal_t));
-TaskHandle_t signalHandle;
-
 LoadParameter lp;
 
 ModbusServerRTU MBserver(2000);
@@ -85,7 +82,7 @@ loadParamRegister paramRegs;
 
 LoadHandle loadHandle[3];
 
-LatchHandle latchHandle[3];
+LatchHandleAsync latchHandleAsync[3];
 
 /**
  * relay[0] -> Relay 1 ON
@@ -349,65 +346,6 @@ void relayFeedbackLongPressStop3()
   relayConnected[2] = false;
 }
 
-void onSignal(Latch::latch_sync_signal_t signal)
-{
-  ESP_LOGI(TAG, "on signal cb");
-  if (xQueueSend(signalQueue, &signal, 100) == pdTRUE)
-  {
-    ESP_LOGI(TAG, "successfully sent into queue");
-  }
-}
-
-void relayTask(void *pvParameter)
-{
-  const char* _TAG = "relay-task";
-  while (1)
-  {
-    Latch::latch_sync_signal_t signal;
-    if (xQueueReceive(signalQueue, &signal, portMAX_DELAY) == pdTRUE)
-    {
-      ESP_LOGI(_TAG, "process signal");
-      if (signal.pulseOn)
-      {
-        ESP_LOGI(_TAG, "pulse on start");
-        signal.pulseOn->set();
-        while (signal.pulseOn->isRunning())
-        {
-          delay(1);
-        }
-        ESP_LOGI(_TAG, "pulse on finish");
-        for (size_t i = 0; i < 3; i++)
-        {
-          uint8_t id = latchHandle[i].getId();
-          if (id == signal.id)
-          {
-            latchHandle[i].resetPulseOn();
-          }
-        }
-      }
-      if (signal.pulseOff)
-      {
-        ESP_LOGI(_TAG, "pulse off start");
-        signal.pulseOff->set();
-        while (signal.pulseOff->isRunning())
-        {
-          delay(1);
-        }
-        ESP_LOGI(_TAG, "pulse off stop");
-        for (size_t i = 0; i < 3; i++)
-        {
-          uint8_t id = latchHandle[i].getId();
-          if (id == signal.id)
-          {
-            latchHandle[i].resetPulseOff();
-          }
-        }
-      }
-    }
-  }
-  
-}
-
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
@@ -440,12 +378,20 @@ void setup() {
   relayFeedback[2].attachLongPressStart(relayFeedbackLongPressStart3);
   relayFeedback[2].attachLongPressStop(relayFeedbackLongPressStop3);
 
-  latchHandle[0].setup(1, 2000, 5, &relay[0], &relay[1]);
-  latchHandle[0].onSignal(&onSignal);
-  latchHandle[1].setup(2, 2000, 5, &relay[2], &relay[3]);
-  latchHandle[1].onSignal(&onSignal);
-  latchHandle[2].setup(3, 2000, 5, &relay[4], &relay[5]);
-  latchHandle[2].onSignal(&onSignal);
+  Latch::latch_async_config_t config;
+  config.pinOn = device_pin_t.relayOn1;
+  config.pinOff = device_pin_t.relayOff1;
+  config.onDuration = 100;
+  config.offDuration = 100;
+  latchHandleAsync[0].setup(config);
+
+  config.pinOn = device_pin_t.relayOn2;
+  config.pinOff = device_pin_t.relayOff2;
+  latchHandleAsync[1].setup(config);
+  
+  config.pinOn = device_pin_t.relayOn3;
+  config.pinOff = device_pin_t.relayOff3;
+  latchHandleAsync[2].setup(config);
 
   Serial.begin(115200);
   lp.begin("load1");
@@ -472,8 +418,6 @@ void setup() {
   MBserver.registerWorker(lp.getId(), READ_INPUT_REGISTER, &FC04);
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
   MBserver.begin(Serial2);
-
-  xTaskCreate(&relayTask, "relay task", 2048, NULL, 8, &signalHandle);
 
   /**
    * load paramater from flash memory and pass it into loadHandle
@@ -548,9 +492,9 @@ void loop() {
   loadHandle[0].loop(loadVolts, current[0]);
   loadHandle[1].loop(loadVolts, current[1]);
   loadHandle[2].loop(loadVolts, current[2]);
-  latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]);
-  latchHandle[1].handle(loadHandle[1].getAction(), relayConnected[1]);
-  latchHandle[2].handle(loadHandle[2].getAction(), relayConnected[2]);
+  latchHandleAsync[0].handle(loadHandle[0].getAction(), relayConnected[0]);
+  latchHandleAsync[1].handle(loadHandle[1].getAction(), relayConnected[1]);
+  latchHandleAsync[2].handle(loadHandle[2].getAction(), relayConnected[2]);
 
   // for (size_t i = 0; i < 3; i++)
   // {
@@ -574,7 +518,7 @@ void loop() {
     // ESP_LOGI(TAG, "manual");
     for (size_t i = 0; i < 3; i++)
     {
-      latchHandle[i].setManual();
+      latchHandleAsync[i].setManual();
     }
     
     for (size_t i = 0; i < 6; i++)
@@ -593,15 +537,15 @@ void loop() {
     systemStatus.flag.mode = 0;
     for (size_t i = 0; i < 3; i++)
     {
-      latchHandle[i].setAuto();
+      latchHandleAsync[i].setAuto();
     }
 
-    feedbackStatus.flag.relayOnFailed1 = latchHandle[0].isFailedOn();
-    feedbackStatus.flag.relayOffFailed1 = latchHandle[0].isFailedOff();
-    feedbackStatus.flag.relayOnFailed2 = latchHandle[1].isFailedOn();
-    feedbackStatus.flag.relayOffFailed2 = latchHandle[1].isFailedOff();
-    feedbackStatus.flag.relayOnFailed3 = latchHandle[2].isFailedOn();
-    feedbackStatus.flag.relayOffFailed3 = latchHandle[2].isFailedOff();
+    feedbackStatus.flag.relayOnFailed1 = latchHandleAsync[0].isFailedOn();
+    feedbackStatus.flag.relayOffFailed1 = latchHandleAsync[0].isFailedOff();
+    feedbackStatus.flag.relayOnFailed2 = latchHandleAsync[1].isFailedOn();
+    feedbackStatus.flag.relayOffFailed2 = latchHandleAsync[1].isFailedOff();
+    feedbackStatus.flag.relayOnFailed3 = latchHandleAsync[2].isFailedOn();
+    feedbackStatus.flag.relayOffFailed3 = latchHandleAsync[2].isFailedOff();
     // ESP_LOGI(TAG, "relay 1 on failed : %d\n", feedbackStatus.flag.relayOnFailed1);
     // ESP_LOGI(TAG, "relay 1 off failed : %d\n", feedbackStatus.flag.relayOffFailed1);
     // ESP_LOGI(TAG, "relay 2 on failed : %d\n", feedbackStatus.flag.relayOnFailed2);

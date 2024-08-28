@@ -11,6 +11,10 @@ void PulseOutput::setup(uint8_t pin, int pulseOnDuration, int pulseOffDuration, 
     _pulseOnDuration = pulseOnDuration;
     _pulseOffDuration = pulseOffDuration;
     _activeLow = activeLow;
+    if (_pin < 0)
+    {
+        return;
+    }
     pinMode(_pin, OUTPUT);
 }
 
@@ -26,6 +30,10 @@ void PulseOutput::set()
 void PulseOutput::reset()
 {
     _isSet = false;
+    if (_pin < 0)
+    {
+        return;
+    }
     digitalWrite(_pin, _activeLow);
 }
 
@@ -50,14 +58,20 @@ void PulseOutput::tick()
     {
         if (millis() - _lastPulseOnCheck < _pulseOnDuration)
         {
-            ESP_LOGI(_TAG, "pulse on");
-            digitalWrite(_pin, !_activeLow);
+            // ESP_LOGI(_TAG, "pulse on");
+            if (_pin != -1)
+            {
+                digitalWrite(_pin, !_activeLow);
+            }
             _lastPulseOffCheck = millis();
         }
         else
         {
-            ESP_LOGI(_TAG, "pulse off");
-            digitalWrite(_pin, _activeLow);
+            // ESP_LOGI(_TAG, "pulse off");
+            if (_pin != -1)
+            {
+                digitalWrite(_pin, _activeLow);
+            }
             if (millis() - _lastPulseOffCheck > _pulseOffDuration)
             {
                 _lastPulseOnCheck = millis();

@@ -4,28 +4,45 @@ LatchHandle::LatchHandle(/* args */)
 {
 }
 
-void LatchHandle::setup(int pinOn, int pinOff, int onDuration, int offDuration, bool activeLow, int interval)
+/**
+ * Setup class
+ * 
+ * @param[in]   id  id of class
+ * @param[in]   retryInterval interval when failed trigger relay
+ * @param[in]   maxRetry maximum number of retry
+ * @param[in]   pulseOn pointer into PulseOutput data type
+ * @param[in]   pulseOff pointer into PulseOutput data type
+ */
+void LatchHandle::setup(uint8_t id, int retryInterval, int maxRetry, PulseOutput *pulseOn, PulseOutput *pulseOff)
 {
-    _pinOn = pinOn;
-    _pinOff = pinOff;
-    _onDuration = onDuration;
-    _offDuration = offDuration;
-    _activeLow = activeLow;
-    _interval = interval;
-    _pulseOn.setup(_pinOn, _onDuration, _offDuration, _activeLow);
-    _pulseOff.setup(_pinOff, _onDuration, _offDuration, _activeLow);
+    _id = id;
+    _interval = retryInterval;
+    _maxRetry = maxRetry;
+    _pulseOn = pulseOn;
+    _pulseOff = pulseOff;
 }
 
+/**
+ * On signal callback
+ * 
+ * @param[in]   cb callback
+ */
+void LatchHandle::onSignal(Callback cb)
+{
+    _onSignalCb = cb;
+}
+
+/**
+ * Set manual
+ */
 void LatchHandle::setManual()
 {
-    if (!_isManual)
-    {
-        _pulseOn.reset();
-        _pulseOff.reset();
-    }
     _isManual = true;
 }
 
+/**
+ * Set auto
+ */
 void LatchHandle::setAuto()
 {
     if (_isManual)
@@ -35,16 +52,17 @@ void LatchHandle::setAuto()
     _isManual = false;
 }
 
+/**
+ * Stop
+ */
 void LatchHandle::stop()
 {
-    if (!_isStop)
-    {
-        _pulseOn.reset();
-        _pulseOff.reset();
-    }
     _isStop = true;
 }
 
+/**
+ * Restart
+ */
 void LatchHandle::restart()
 {
     _failOnCnt = 0;
@@ -53,40 +71,37 @@ void LatchHandle::restart()
     _failOff = false;
 }
 
-void LatchHandle::set()
+/**
+ * Reset pulse on state
+ * 
+ * @brief   use this method to reset the flag, so the class routine can continue
+ */
+void LatchHandle::resetPulseOn()
 {
-    _isSet = true;
+    _pulseOnState = false;
 }
 
-void LatchHandle::reset()
+/**
+ * Reset pulse off state
+ * 
+ * @brief   use this method to reset the flag, so the class routine can continue
+ */
+void LatchHandle::resetPulseOff()
 {
-    _isReset = true;
+    _pulseOffState = false;
 }
 
-void LatchHandle::setDuration(int onDuration, int offDuration)
-{
-    _onDuration = onDuration;
-    _offDuration = offDuration;
-    _pulseOn.changePulseOnDuration(_onDuration);
-    _pulseOn.changePulseOffDuration(_offDuration);
-    _pulseOff.changePulseOnDuration(_onDuration);
-    _pulseOff.changePulseOffDuration(_offDuration);
-}
-
-void LatchHandle::setActiveState(bool activeLow)
-{
-    _activeLow = activeLow;
-    _pulseOn.changeActiveState(_activeLow);
-    _pulseOff.changeActiveState(_activeLow);
-}
-
+/**
+ * Main handle
+ * 
+ * @brief   call this function periodically to update the class value, will determine the action based on feedback. e.g when action HIGH, and the feedback LOW, it means
+ *          that the relay still in not in the right state, so it will send pulse into relay
+ * 
+ * @param[in]   action  action status, it is either HIGH or LOW
+ * @param[in]   feedback    feedback status, HIGH or LOW
+ */
 void LatchHandle::handle(bool action, bool feedback)
 {
-    // ESP_LOGI(_TAG, "action = %d, feedback = %d\n", action, feedback);
-
-    _pulseOn.tick();
-    _pulseOff.tick();
-    
     if(_isStop)
     {
         return;
@@ -94,30 +109,51 @@ void LatchHandle::handle(bool action, bool feedback)
 
     if(!_isManual)
     {
-        if (action)
+        if (action) //if action is HIGH (ON)
         {
-            if (!feedback)
+            _pulseOffState = false;
+            if (!feedback) //if relay feedback is off
             {
-                if (_failOn)
+                if (_failOn) //if in failstate
                 {
                     if (millis() - _lastFailOnCheck > _interval)
                     {
-                        _pulseOn.set();
                         _lastFailOnCheck = millis();
+                        if(_pulseOnState) //if the state is not resetted, immediately return
+                        {
+                            return;
+                        }
+                        _pulseOnState = true;
+                        Latch::latch_sync_signal_t signal; //build data to pass into callback
+                        signal.id = _id;
+                        signal.pulseOn = _pulseOn;
+                        if (_onSignalCb) //if on signal callback is exist (not null pointer)
+                        {
+                            ESP_LOGI(_TAG, "relay on");
+                            _onSignalCb(signal); //call the on signal callback
+                        }
                     }
                 }
                 else
                 {
-                    if (!_pulseOn.isRunning())
+                    if (_pulseOnState) //if the state is not resetted, immediately return
                     {
-                        _failOnCnt++;
-                        if (_failOnCnt > 10)
-                        {
-                            _failOn = true;
-                            _lastFailOnCheck = millis();
-                        }
-                        ESP_LOGI(_TAG, "pulse relay on set\n");
-                        _pulseOn.set();
+                        return;
+                    }
+                    _pulseOnState = true;
+                    Latch::latch_sync_signal_t signal; //build data to pass into callback
+                    signal.id = _id;
+                    signal.pulseOn = _pulseOn;
+                    if (_onSignalCb) //if on signal callback is exist (not null pointer)
+                    {
+                        ESP_LOGI(_TAG, "relay on");
+                        _onSignalCb(signal); //call the on signal callback
+                    }
+                    _failOnCnt++; //because action high and feedback still low, count it as fail
+                    if (_failOnCnt > _maxRetry) //if too many failed trigger, enter fail state
+                    {
+                        _failOn = true;
+                        _lastFailOnCheck = millis();
                     }
                 }
             }
@@ -125,64 +161,94 @@ void LatchHandle::handle(bool action, bool feedback)
             {
                 _failOn = false;
                 _failOnCnt = 0;
+                _pulseOnState = false;
             }
         }
-        else
+        else //if action is LOW
         {
-            if (feedback)
+            _pulseOnState = false;
+            if (feedback) //if feedback is HIGH
             {
-                if (_failOff)
+                if (_failOff) //if in fail state
                 {
                     if (millis() - _lastFailOffCheck > _interval)
                     {
-                        _pulseOff.set();
                         _lastFailOffCheck = millis();
+                        if (_pulseOffState) //if the state is not resetted, immediately return
+                        {
+                            return;
+                        }
+                        _pulseOffState = true;
+                        Latch::latch_sync_signal_t signal; //build data to pass into callback
+                        signal.id = _id;
+                        signal.pulseOff = _pulseOff;
+                        _pulseOffState = false;
+                        if (_onSignalCb) //if on signal callback is exist (not null pointer)
+                        {
+                            ESP_LOGI(_TAG, "relay off");
+                            _onSignalCb(signal); //call the on signal callback
+                        }
                     }
                 }
                 else
                 {
-                    if (!_pulseOff.isRunning())
+                    if (_pulseOffState) //if the state is not resetted, immediately return
                     {
-                        _failOffCnt++;
-                        if (_failOffCnt > 10)
-                        {
-                            _failOff = true;
-                            _lastFailOffCheck = millis();
-                        }
-                        ESP_LOGI(_TAG, "pulse relay off set\n");
-                        _pulseOff.set();
+                        return;
                     }
+                    _pulseOffState = true;
+                    Latch::latch_sync_signal_t signal; //build data to pass into callback
+                    signal.id = _id;
+                    signal.pulseOff = _pulseOff;
+                    if (_onSignalCb) //if on signal callback is exist (not null pointer)
+                    {
+                        ESP_LOGI(_TAG, "relay off");
+                        _onSignalCb(signal); //call the on signal callback
+                    }
+                    _failOffCnt++;
+                    if (_failOffCnt > _maxRetry)
+                    {
+                        _failOff = true;
+                        _lastFailOffCheck = millis();
+                    }
+                    ESP_LOGI(_TAG, "pulse relay off set\n");
                 }
             }
             else
             {
-                _failOff = false;
                 _failOffCnt = 0;
+                _failOff = false;
+                _pulseOffState = false;
             }
         }
-    }
-    else
-    {
-        if (_isSet)
-        {
-            _pulseOn.set();
-            _isSet = false;
-        }
-
-        if(_isReset)
-        {
-            _pulseOff.set();
-            _isReset = false;
-        }
-    }
-    
+    }    
 }
 
+/**
+ * Get id of class
+ * 
+ * @return  id of the class
+ */
+uint8_t LatchHandle::getId()
+{
+    return _id;
+}
+
+/**
+ * Get relay ON failed status
+ * 
+ * @return  state of relay ON failed
+ */
 bool LatchHandle::isFailedOn()
 {
     return _failOn;
 }
 
+/**
+ * Get relay OFF failed status
+ * 
+ * @return  state of relay OFF failed
+ */
 bool LatchHandle::isFailedOff()
 {
     return _failOff;
