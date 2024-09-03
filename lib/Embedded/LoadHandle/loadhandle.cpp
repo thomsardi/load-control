@@ -210,7 +210,7 @@ float LoadHandle::toCurrent(int raw, int gain, int maxRaw, int minRaw, int midPo
     float resolution = 3300; 
     resolution /= (maxRaw - minRaw); // for 1 adc value equal to how many millivolt
     float milliVolt = (raw - minRaw - midPoint) * resolution; // multiply the adc value with resolution to get actual millivolt
-    float current = milliVolt / gain;   // multiply the millivolt with gain to get current
+    float current = milliVolt / gain;   // divide the millivolt with gain to get current
     return current;
 }
 

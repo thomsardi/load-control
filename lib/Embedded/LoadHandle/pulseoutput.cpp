@@ -5,6 +5,14 @@ PulseOutput::PulseOutput()
     
 }
 
+/**
+ * setup the pin, pulse duration and active mode
+ * 
+ * @param[in]   pin pin number
+ * @param[in]   pulseOnDuration duration of ON pulse in ms
+ * @param[in]   pulseOffDuration    duration of OFF pulse in ms
+ * @param[in]   activeLow   active mode   
+ */
 void PulseOutput::setup(uint8_t pin, int pulseOnDuration, int pulseOffDuration, bool activeLow)
 {
     _pin = pin;
@@ -18,6 +26,9 @@ void PulseOutput::setup(uint8_t pin, int pulseOnDuration, int pulseOffDuration, 
     pinMode(_pin, OUTPUT);
 }
 
+/**
+ * set single pulse
+ */
 void PulseOutput::set()
 {
     if (!_isSet)
@@ -27,6 +38,9 @@ void PulseOutput::set()
     }
 }
 
+/**
+ * reset the pulse
+ */
 void PulseOutput::reset()
 {
     _isSet = false;
@@ -37,21 +51,39 @@ void PulseOutput::reset()
     digitalWrite(_pin, _activeLow);
 }
 
+/**
+ * Change active state
+ * 
+ * @param[in]   activeLow   true will reverse the pulse
+ */
 void PulseOutput::changeActiveState(bool activeLow)
 {
     _activeLow = activeLow;
 }
 
+/**
+ * Change pulse ON duration
+ * 
+ * @param[in]   duration    duration of ON pulse
+ */
 void PulseOutput::changePulseOnDuration(int duration)
 {
     _pulseOnDuration = duration;
 }
 
+/**
+ * Change pulse OFF duration
+ * 
+ * @param[in]   duration    duration of OFF pulse
+ */
 void PulseOutput::changePulseOffDuration(int duration)
 {
     _pulseOffDuration = duration;
 }
 
+/**
+ * main loop, call this periodically to keep track of pulse
+ */
 void PulseOutput::tick()
 {
     if (_isSet)
@@ -81,6 +113,11 @@ void PulseOutput::tick()
     }
 }
 
+/**
+ * Check for running status, will return true if is in middle of process
+ * 
+ * @return  status of task
+ */
 bool PulseOutput::isRunning()
 {
     return _isSet;

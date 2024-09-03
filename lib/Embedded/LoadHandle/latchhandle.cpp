@@ -13,13 +13,13 @@ LatchHandle::LatchHandle(/* args */)
  * @param[in]   pulseOn pointer into PulseOutput data type
  * @param[in]   pulseOff pointer into PulseOutput data type
  */
-void LatchHandle::setup(uint8_t id, int retryInterval, int maxRetry, PulseOutput *pulseOn, PulseOutput *pulseOff)
+void LatchHandle::setup(const Latch::latch_sync_config_t &config)
 {
-    _id = id;
-    _interval = retryInterval;
-    _maxRetry = maxRetry;
-    _pulseOn = pulseOn;
-    _pulseOff = pulseOff;
+    _id = config.id;
+    _interval = config.retryInterval;
+    _maxRetry = config.maxRetry;
+    _pulseOn = config.pulseOn;
+    _pulseOff = config.pulseOff;
 }
 
 /**

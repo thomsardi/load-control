@@ -1,7 +1,7 @@
 /**
- * load control sync program
+ * Dummy synchronize program
  * 
- * It is used to handle modbus request and handle relay to prevent them turn on at the same time
+ * It is used to generate some random data error on modbus register and handle the relay to prevent them turn on at the same time
  * which can be potentially dangerous for the driver. Single coil need 500mA, to prolong driver's life, relay should not be
  * turn on simultaneously!
  * 
@@ -80,6 +80,16 @@ struct device_pin {
   uint8_t tx2 = 17;
 } device_pin_t;
 
+enum STATE : uint8_t {
+  NO_VOLTAGE,
+  UNDER_VOLTAGE,
+  OVER_VOLTAGE,
+  OVERCURRENT,
+  SHORT_CIRCUIT,
+  NORMAL,
+  END
+};
+
 QueueHandle_t signalQueue = xQueueCreate(12, sizeof(Latch::latch_sync_signal_t)); //create queue
 TaskHandle_t signalHandle;
 
@@ -114,6 +124,13 @@ CoilData myCoils(9);
 bool relayConnected[3];
 
 bool isParameterChanged = false;
+
+int16_t dummyVoltage[4];
+int16_t dummyCurrent[3];
+
+uint8_t currentState = NO_VOLTAGE;
+
+unsigned long lastChangeState;
 
 // FC_01: act on 0x01 requests - READ_COIL
 ModbusMessage FC_01(ModbusMessage request) {
@@ -323,6 +340,7 @@ ModbusMessage FC10(ModbusMessage request) {
     
     // Looks okay. Set up message with serverID, FC and length of data
     response.add(request.getServerID(), request.getFunctionCode(), address, words);
+
     isParameterChanged = true;
   } else {
     // No, either address or words are outside the limits. Set up error response.
@@ -330,6 +348,7 @@ ModbusMessage FC10(ModbusMessage request) {
   }
   return response;
 }
+
 
 void relayFeedbackLongPressStart1()
 {
@@ -441,9 +460,6 @@ void setup() {
   relay[4].setup(device_pin_t.relayOn3, 100, 100);
   relay[5].setup(device_pin_t.relayOff3, 100, 100);
 
-  /**
-   * Feedback setting
-   */
   relayFeedback[0].setup(device_pin_t.relayFb1, INPUT_PULLUP, true);
   relayFeedback[0].setDebounceMs(20);
   relayFeedback[0].setClickMs(50);
@@ -508,6 +524,7 @@ void setup() {
   MBserver.registerWorker(lp.getId(), WRITE_MULT_COILS, &FC_0F);
   MBserver.registerWorker(lp.getId(), READ_HOLD_REGISTER, &FC03);
   MBserver.registerWorker(lp.getId(), READ_INPUT_REGISTER, &FC04);
+  MBserver.registerWorker(lp.getId(), WRITE_HOLD_REGISTER, &FC06);
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
   MBserver.begin(Serial2);
 
@@ -626,6 +643,84 @@ void loop() {
     current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
   }
 
+  switch (currentState)
+  {
+    case NO_VOLTAGE:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = 0;
+      }
+
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = 0;
+      }
+      
+    break;
+    case UNDER_VOLTAGE:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(400, 480);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(-800, 800);        
+      }
+    break;
+    case OVER_VOLTAGE:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(590, 660);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(-800, 800);
+      }
+    break;
+    case OVERCURRENT:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(520, 570);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(1000, 1500);
+      }
+    break;
+    case SHORT_CIRCUIT:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(520, 570);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(2100, 2500);
+      }
+    break;
+    case NORMAL:
+      for (size_t i = 0; i < 4; i++)
+      {
+        dummyVoltage[i] = random(520, 570);
+      }
+      for (size_t i = 0; i < 3; i++)
+      {
+        dummyCurrent[i] = random(-800, 800);
+      }
+    break;
+    case END:
+    break;
+    default:
+      break;
+  }
+
+  if (millis() - lastChangeState > 3000)
+  {
+    currentState++;
+    currentState == END? currentState = NO_VOLTAGE : currentState;
+    lastChangeState = millis();
+  }
+  
+
   for (size_t i = 0; i < 6; i++)
   {
     relay[i].tick();
@@ -646,19 +741,13 @@ void loop() {
   // for (size_t i = 0; i < 3; i++)
   // {
   //   ESP_LOGI(TAG, "load voltage %d = %d\n", i+1, loadVolts);
-  //   ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, (int16_t)current[i]);
+  //   ESP_LOGI(TAG, "signed load current %d = %d\n", i+1, current[i]);
   //   ESP_LOGI(TAG, "unsigned load current %d = %d\n", i+1, (uint16_t)current[i]);
   //   ESP_LOGI(TAG, "overvoltage flag %d = %d\n", i+1, loadHandle[i].isOvervoltage());
   //   ESP_LOGI(TAG, "undervoltage flag %d = %d\n", i+1, loadHandle[i].isUndervoltage());
   //   ESP_LOGI(TAG, "overcurrent flag %d = %d\n", i+1, loadHandle[i].isOvercurrent());
   //   ESP_LOGI(TAG, "short circuit flag %d = %d\n", i+1, loadHandle[i].isShortCircuit());
   // }
-  
-  // ESP_LOGI(TAG, "action : %d\n", loadHandle[0].getAction());
-  // ESP_LOGI(TAG, "flag : %d\n", loadHandle[0].getStatus());
-  // ESP_LOGI(TAG, "overvoltage flag : %d\n", loadHandle[0].isOvervoltage());
-  // ESP_LOGI(TAG, "undervoltage flag : %d\n", loadHandle[0].isUndervoltage());
-  // ESP_LOGI(TAG, "overcurrent flag : %d\n", loadHandle[0].isOvercurrent());
 
   if (myCoils[6])
   {
@@ -686,36 +775,29 @@ void loop() {
     {
       latchHandle[i].setAuto();
     }
-
     feedbackStatus.flag.relayOnFailed1 = latchHandle[0].isFailedOn();
     feedbackStatus.flag.relayOffFailed1 = latchHandle[0].isFailedOff();
     feedbackStatus.flag.relayOnFailed2 = latchHandle[1].isFailedOn();
     feedbackStatus.flag.relayOffFailed2 = latchHandle[1].isFailedOff();
     feedbackStatus.flag.relayOnFailed3 = latchHandle[2].isFailedOn();
     feedbackStatus.flag.relayOffFailed3 = latchHandle[2].isFailedOff();
-    // ESP_LOGI(TAG, "relay 1 on failed : %d\n", feedbackStatus.flag.relayOnFailed1);
-    // ESP_LOGI(TAG, "relay 1 off failed : %d\n", feedbackStatus.flag.relayOffFailed1);
-    // ESP_LOGI(TAG, "relay 2 on failed : %d\n", feedbackStatus.flag.relayOnFailed2);
-    // ESP_LOGI(TAG, "relay 2 off failed : %d\n", feedbackStatus.flag.relayOffFailed2);
-    // ESP_LOGI(TAG, "relay 3 on failed : %d\n", feedbackStatus.flag.relayOnFailed3);
-    // ESP_LOGI(TAG, "relay 3 off failed : %d\n", feedbackStatus.flag.relayOffFailed3);
   }
 
-  loadVolts > 5? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
-  loadVolts > 5? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
-  loadVolts > 5? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
+  dummyVoltage[0] > 5? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
+  dummyVoltage[1] > 5? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
+  dummyVoltage[2] > 5? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
 
   feedbackStatus.flag.relayFeedback1 = relayConnected[0];
   feedbackStatus.flag.relayFeedback2 = relayConnected[1];
   feedbackStatus.flag.relayFeedback3 = relayConnected[2];
 
-  buffRegs.assignLoadVoltage1(loadVolts);
-  buffRegs.assignLoadVoltage2(loadVolts);
-  buffRegs.assignLoadVoltage3(loadVolts);
-  buffRegs.assignSystemVoltage(loadVolts);
-  buffRegs.assignLoadCurrent1(current[0]);
-  buffRegs.assignLoadCurrent2(current[1]);
-  buffRegs.assignLoadCurrent3(current[2]);
+  buffRegs.assignLoadVoltage1(dummyVoltage[0]);
+  buffRegs.assignLoadVoltage2(dummyVoltage[1]);
+  buffRegs.assignLoadVoltage3(dummyVoltage[2]);
+  buffRegs.assignSystemVoltage(dummyVoltage[3]);
+  buffRegs.assignLoadCurrent1(dummyCurrent[0]);
+  buffRegs.assignLoadCurrent2(dummyCurrent[1]);
+  buffRegs.assignLoadCurrent3(dummyCurrent[2]);
   buffRegs.assignFlag1(loadHandle[0].getStatus());
   buffRegs.assignFlag2(loadHandle[1].getStatus());
   buffRegs.assignFlag3(loadHandle[2].getStatus());
@@ -728,7 +810,7 @@ void loop() {
     myCoils.set(8, false);
     lp.reset();
   }
-  
+
   if (myCoils[7])
   {
     ESP_LOGI(TAG, "restart");

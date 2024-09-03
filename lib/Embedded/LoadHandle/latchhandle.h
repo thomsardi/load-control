@@ -6,7 +6,7 @@
 
 namespace Latch {
     /**
-     * config struct
+     * config struct for async latch
      */
     struct latch_async_config_t {
         int pinOn = -1;
@@ -19,17 +19,32 @@ namespace Latch {
     };
 
     /**
+     * config struct for sync latch
+     */
+    struct latch_sync_config_t
+    {
+        uint8_t id = 0; //id of the class
+        int retryInterval = 2000;
+        int maxRetry = 5;
+        PulseOutput *pulseOn = NULL;
+        PulseOutput *pulseOff = NULL;
+    };
+    
+    /**
      * signal data struct
      */
     struct latch_sync_signal_t {
-        uint8_t id;
-        PulseOutput *pulseOn = NULL;
-        PulseOutput *pulseOff = NULL;
+        uint8_t id = 0; //id of the class
+        PulseOutput *pulseOn = NULL; //pointer to PulseOutput data type
+        PulseOutput *pulseOff = NULL; //pointer to PulseOutput data type
     };
 };
 
 using Callback = std::function<void(Latch::latch_sync_signal_t signal)>; //function declaration for callback
 
+/**
+ * Sync latch handle, need to be controlled by reset some flag to re-trigger output
+ */
 class LatchHandle
 {
 private:
@@ -54,7 +69,7 @@ private:
 public:
     LatchHandle();
     uint8_t getId(); //get id of class
-    void setup(uint8_t id = 1, int retryInterval = 2000, int maxRetry = 5, PulseOutput *pulseOn = NULL, PulseOutput *pulseOff = NULL); //setup class
+    void setup(const Latch::latch_sync_config_t &config); //setup class
     void setManual(); //set to manual
     void setAuto(); //set to auto
     void stop(); //stop routine
@@ -68,6 +83,9 @@ public:
     ~LatchHandle();
 };
 
+/**
+ * Async latch handle class, can be called separately and handle the pulse output itself
+ */
 class LatchHandleAsync
 {
 private:
