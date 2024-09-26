@@ -112,7 +112,6 @@ struct device_pin {
 
 QueueHandle_t signalQueue = xQueueCreate(12, sizeof(Latch::latch_sync_signal_t)); //create queue
 TaskHandle_t relayTaskHandle;
-TaskHandle_t adsTaskHandle;
 
 LoadParameter lp;
 
@@ -143,8 +142,6 @@ PulseOutput relay[6];
 OneButton relayFeedback[3];
 
 CoilData myCoils(9);
-
-std::array<int16_t, 4> voltageSense;
 
 bool relayConnected[3];
 
@@ -462,22 +459,22 @@ void relayTask(void *pvParameter)
   }
 }
 
-void adsTask(void *pvParameter)
+void adsTask()
 {
-  const char* _TAG = "ads-task";
-  voltageSense.fill(0);
-  while (1)
-  {
-    ADS.setGain(0);
-    float f = ADS.toVoltage(VOLTAGE_MULTIPLIER);  //  voltage factor
-    for (size_t i = 0; i < voltageSense.size(); i++)
-    {
-      int16_t rawAdc = ADS.readADC(i);
-      voltageSense[i] = (int16_t)rawAdc*f*10;
-      ESP_LOGI(TAG, "Raw Analog%d = %d, Voltage = %.2f V", i, rawAdc, (float)rawAdc*f);
-    }    
-    delay(10);
-  }
+  ADS.setGain(0);
+
+  int16_t val_0 = ADS.readADC(0);  
+  int16_t val_1 = ADS.readADC(1);  
+  int16_t val_2 = ADS.readADC(2);  
+  int16_t val_3 = ADS.readADC(3);  
+
+  // float f = ADS.toVoltage(1);  //  voltage factor
+  float f = ADS.toVoltage(VOLTAGE_MULTIPLIER);  //  voltage factor
+
+  ESP_LOGI(TAG, "Raw Analog0 = %d, Voltage = %.2f V", val_0, (float)val_0*f);
+  ESP_LOGI(TAG, "Raw Analog1 = %d, Voltage = %.2f V", val_1, (float)val_1*f);
+  ESP_LOGI(TAG, "Raw Analog2 = %d, Voltage = %.2f V", val_2, (float)val_2*f);
+  ESP_LOGI(TAG, "Raw Analog3 = %d, Voltage = %.2f V", val_3, (float)val_3*f);
 }
 
 void setup() {
@@ -566,7 +563,6 @@ void setup() {
   MBserver.begin(Serial2);
 
   xTaskCreate(&relayTask, "relay task", 2048, NULL, 8, &relayTaskHandle);
-  xTaskCreate(&adsTask, "ads task", 2048, NULL, 8, &adsTaskHandle);
 
   /**
    * load paramater from flash memory and pass it into loadHandle
@@ -662,6 +658,8 @@ void loop() {
   // put your main code here, to run repeatedly:
   systemStatus.flag.run = 1;
 
+  adsTask();
+
   if (isParameterChanged)
   {
     updateParameter();
@@ -691,11 +689,6 @@ void loop() {
     relayFeedback[i].tick();
   }
     
-  for (size_t i = 0; i < voltageSense.size(); i++)
-  {
-    ESP_LOGI(TAG, "Voltage %d = %d", i, voltageSense[i]);
-  }
-
   loadHandle[0].loop(loadVolts, current[0]);
   loadHandle[1].loop(loadVolts, current[1]);
   loadHandle[2].loop(loadVolts, current[2]);
