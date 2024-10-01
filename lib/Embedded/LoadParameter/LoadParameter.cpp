@@ -38,7 +38,7 @@ void LoadParameter::createDefault()
 {
     Preferences preferences;
     preferences.begin(_name.c_str());
-    preferences.putUShort("d_baud", 6);  // default baudrate
+    preferences.putUShort("d_baud", 0);  // default baudrate
     preferences.putUShort("d_id", 254); // default id
     preferences.putUShort("d_ov_d1", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r1", 580);  // default overcoltage reconnect

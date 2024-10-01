@@ -23,7 +23,6 @@
 #include <latchhandle.h>
 #include <pulseoutput.h>
 #include <loaddefs.h>
-#include <cc6940.h>
 
 #include <CoilData.h>
 
@@ -33,7 +32,7 @@
 
 #define BRIDGE_VOLTAGE_DROP 1.4
 #define TRANSISTOR_VOTAGE_DROP 2.0
-#define VOLTAGE_MULTIPLIER  24
+#define VOLTAGE_MULTIPLIER  18.5
 #define CURRENT_GAIN  66  //CC6904SO-20A gain is 63 - 69 mV/A, typical 66 mV/A
 
 const char* TAG = "load-control";
@@ -100,12 +99,12 @@ struct device_pin {
   uint8_t relayOff1 = 25;
 
   uint8_t relayFb2 = 13;
-  uint8_t relayOn2 = 22;
-  uint8_t relayOff2 = 23;
+  uint8_t relayOn2 = 23;
+  uint8_t relayOff2 = 22;
   
   uint8_t relayFb3 = 21;
-  uint8_t relayOn3 = 18;
-  uint8_t relayOff3 = 19;
+  uint8_t relayOn3 = 19;
+  uint8_t relayOff3 = 28;
   
   uint8_t rx2 = 16;
   uint8_t tx2 = 17;
@@ -113,14 +112,12 @@ struct device_pin {
 
 QueueHandle_t signalQueue = xQueueCreate(12, sizeof(Latch::latch_sync_signal_t)); //create queue
 TaskHandle_t relayTaskHandle;
-TaskHandle_t adsTaskHandle;
 
 LoadParameter lp;
 
 ModbusServerRTU MBserver(2000);
 
 ADS1115 ADS(0x48);
-CC6940 cc6940;
 
 LoadModbus::modbusRegister buffRegs;
 LoadModbus::FeedbackStatus feedbackStatus;
@@ -145,8 +142,6 @@ PulseOutput relay[6];
 OneButton relayFeedback[3];
 
 CoilData myCoils(9);
-
-std::array<int16_t, 4> voltageSense;
 
 bool relayConnected[3];
 
@@ -438,7 +433,6 @@ void relayTask(void *pvParameter)
           uint8_t id = latchHandle[i].getId(); //get the id of the LatchHandle class
           if (id == signal.id) //if is found
           {
-            // ESP_LOGI(_TAG, "id found = %d", signal.id);
             latchHandle[i].resetPulseOn(); //reset the flag, call this everytime pulse is end!
           }
         }
@@ -457,7 +451,6 @@ void relayTask(void *pvParameter)
           uint8_t id = latchHandle[i].getId(); //get the id of the LatchHandle class
           if (id == signal.id)
           {
-            // ESP_LOGI(_TAG, "id found = %d", signal.id);
             latchHandle[i].resetPulseOff(); //reset the flag, call this everytime pulse is end!
           }
         }
@@ -466,83 +459,37 @@ void relayTask(void *pvParameter)
   }
 }
 
-void adsTask(void *pvParameter)
+void adsTask()
 {
-  const char* _TAG = "ads-task";
-  voltageSense.fill(0);
-  while (1)
-  {
-    ADS.setGain(0);
-    float f = ADS.toVoltage(VOLTAGE_MULTIPLIER);  //  voltage factor
-    for (size_t i = 0; i < voltageSense.size(); i++)
-    {
-      int16_t rawAdc = ADS.readADC(i);
-      voltageSense[i] = (int16_t)rawAdc*f*10;
-      ESP_LOGI(TAG, "Raw Analog%d = %d, Voltage = %d V", i, rawAdc, voltageSense[i]);
-    }    
-    delay(10);
-  }
-}
+  ADS.setGain(0);
 
-void scanner() {
-  byte error, address;
-  int nDevices;
+  int16_t val_0 = ADS.readADC(0);  
+  int16_t val_1 = ADS.readADC(1);  
+  int16_t val_2 = ADS.readADC(2);  
+  int16_t val_3 = ADS.readADC(3);  
 
-  Serial.println("Scanning...");
+  // float f = ADS.toVoltage(1);  //  voltage factor
+  float f = ADS.toVoltage(VOLTAGE_MULTIPLIER);  //  voltage factor
 
-  nDevices = 0;
-  for(address = 1; address < 127; address++ )
-  {
-    // The i2c_scanner uses the return value of
-    // the Write.endTransmisstion to see if
-    // a device did acknowledge to the address.
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
-
-    if (error == 0)
-    {
-      Serial.print("I2C device found at address 0x");
-      if (address<16)
-        Serial.print("0");
-      Serial.print(address,HEX);
-      Serial.println("  !");
-
-      nDevices++;
-    }
-    else if (error==4)
-    {
-      Serial.print("Unknown error at address 0x");
-      if (address<16)
-        Serial.print("0");
-      Serial.println(address,HEX);
-    }
-  }
-  if (nDevices == 0)
-    Serial.println("No I2C devices found\n");
-  else
-    Serial.println("done\n");
-
-  delay(5000);           // wait 5 seconds for next scan
+  ESP_LOGI(TAG, "Raw Analog0 = %d, Voltage = %.2f V", val_0, (float)val_0*f);
+  ESP_LOGI(TAG, "Raw Analog1 = %d, Voltage = %.2f V", val_1, (float)val_1*f);
+  ESP_LOGI(TAG, "Raw Analog2 = %d, Voltage = %.2f V", val_2, (float)val_2*f);
+  ESP_LOGI(TAG, "Raw Analog3 = %d, Voltage = %.2f V", val_3, (float)val_3*f);
 }
 
 void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  CC6940Config cc6940Config = cc6940.getPresetConfig(CC6940Type::CURRENT_20A);
-  // cc6940Config.minAdcValue = 1024;
-  cc6940Config.offsetMidpoint = -300;  
-  cc6940.setup(cc6940Config);
-
   /**
    * Pulse setting
    */
-  relay[0].setup(device_pin_t.relayOn1, 100, 400);
-  relay[1].setup(device_pin_t.relayOff1, 100, 400);
-  relay[2].setup(device_pin_t.relayOn2, 100, 400);
-  relay[3].setup(device_pin_t.relayOff2, 100, 400);
-  relay[4].setup(device_pin_t.relayOn3, 100, 400);
-  relay[5].setup(device_pin_t.relayOff3, 100, 400);
+  relay[0].setup(device_pin_t.relayOn1, 100, 100);
+  relay[1].setup(device_pin_t.relayOff1, 100, 100);
+  relay[2].setup(device_pin_t.relayOn2, 100, 100);
+  relay[3].setup(device_pin_t.relayOff2, 100, 100);
+  relay[4].setup(device_pin_t.relayOn3, 100, 100);
+  relay[5].setup(device_pin_t.relayOff3, 100, 100);
 
   /**
    * Feedback setting
@@ -600,10 +547,10 @@ void setup() {
   ESP_LOGI(TAG, "written = %d\n", lp.getAllParameter(paramRegs));
 
   RTUutils::prepareHardwareSerial(Serial2);
-  Serial2.begin(lp.getBaudrateBps());
+  // Serial2.begin(lp.getBaudrateBps());
+  Serial2.begin(9600);
 
   // Serial2.begin(lp.getBaudrateBps(), SERIAL_8N1, device_pin_t.rx2, device_pin_t.tx2);
-  // Serial2.begin(115200, SERIAL_8N1, device_pin_t.rx2, device_pin_t.tx2);
   Wire.begin(device_pin_t.sda, device_pin_t.scl);
   ADS.begin();
   // SPI.begin(device_pin_t.sck, device_pin_t.miso, device_pin_t.mosi, device_pin_t.ss);
@@ -614,10 +561,9 @@ void setup() {
   MBserver.registerWorker(lp.getId(), READ_HOLD_REGISTER, &FC03);
   MBserver.registerWorker(lp.getId(), READ_INPUT_REGISTER, &FC04);
   MBserver.registerWorker(lp.getId(), WRITE_MULT_REGISTERS, &FC10);
-  MBserver.begin(Serial2);
+  // MBserver.begin(Serial2);
 
-  xTaskCreate(&relayTask, "relay task", 2048, NULL, 8, &relayTaskHandle);
-  xTaskCreate(&adsTask, "ads task", 2048, NULL, 8, &adsTaskHandle);
+  // xTaskCreate(&relayTask, "relay task", 2048, NULL, 8, &relayTaskHandle);
 
   /**
    * load paramater from flash memory and pass it into loadHandle
@@ -711,11 +657,10 @@ void updateParameter()
 
 void loop() {
   // put your main code here, to run repeatedly:
-  // while(1)
-  // {
-  //   scanner();
-  // }
   systemStatus.flag.run = 1;
+  Serial2.println("TEST");
+  Serial.println("TEST");
+  // adsTask();
 
   if (isParameterChanged)
   {
@@ -724,17 +669,16 @@ void loop() {
   }
 
   int raw[3];
-  raw[0] = analogRead(device_pin_t.currentIn1); // current load 1
-  raw[1] = analogRead(device_pin_t.currentIn2); // current load 2
-  raw[2] = analogRead(device_pin_t.currentIn3); // current load 3
+  raw[0] = analogRead(36); // current load 1
+  raw[1] = analogRead(39); // current load 2
+  raw[2] = analogRead(34); // current load 3
+
+  int16_t loadVolts = analogRead(35) / 6;
 
   float current[3];
   for (size_t i = 0; i < 3; i++)
   {
-    // current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
-    current[i] = (cc6940.getCurrent(raw[i])) * 100;
-    ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, (int16_t)current[i]);
-    // ESP_LOGI(TAG, "current %d = %d", i+1, (int16_t)current[i]);
+    current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
   }
 
   for (size_t i = 0; i < 6; i++)
@@ -747,14 +691,9 @@ void loop() {
     relayFeedback[i].tick();
   }
     
-  // for (size_t i = 0; i < voltageSense.size(); i++)
-  // {
-  //   ESP_LOGI(TAG, "Voltage %d = %d", i, voltageSense[i]);
-  // }
-
-  loadHandle[0].loop(voltageSense[3], current[0]);
-  loadHandle[1].loop(voltageSense[3], current[1]);
-  loadHandle[2].loop(voltageSense[3], current[2]);
+  loadHandle[0].loop(loadVolts, current[0]);
+  loadHandle[1].loop(loadVolts, current[1]);
+  loadHandle[2].loop(loadVolts, current[2]);
   latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]);
   latchHandle[1].handle(loadHandle[1].getAction(), relayConnected[1]);
   latchHandle[2].handle(loadHandle[2].getAction(), relayConnected[2]);
@@ -817,18 +756,18 @@ void loop() {
     // ESP_LOGI(TAG, "relay 3 off failed : %d\n", feedbackStatus.flag.relayOffFailed3);
   }
 
-  voltageSense[2] > 10? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
-  voltageSense[1] > 10? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
-  voltageSense[0] > 10? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
+  loadVolts > 5? feedbackStatus.flag.mcb1 = true : feedbackStatus.flag.mcb1 = false;
+  loadVolts > 5? feedbackStatus.flag.mcb2 = true : feedbackStatus.flag.mcb2 = false;
+  loadVolts > 5? feedbackStatus.flag.mcb3 = true : feedbackStatus.flag.mcb3 = false;
 
   feedbackStatus.flag.relayFeedback1 = relayConnected[0];
   feedbackStatus.flag.relayFeedback2 = relayConnected[1];
   feedbackStatus.flag.relayFeedback3 = relayConnected[2];
 
-  buffRegs.assignSystemVoltage(voltageSense[3]);
-  buffRegs.assignLoadVoltage1(voltageSense[2]);
-  buffRegs.assignLoadVoltage2(voltageSense[1]);
-  buffRegs.assignLoadVoltage3(voltageSense[0]);
+  buffRegs.assignLoadVoltage1(loadVolts);
+  buffRegs.assignLoadVoltage2(loadVolts);
+  buffRegs.assignLoadVoltage3(loadVolts);
+  buffRegs.assignSystemVoltage(loadVolts);
   buffRegs.assignLoadCurrent1(current[0]);
   buffRegs.assignLoadCurrent2(current[1]);
   buffRegs.assignLoadCurrent3(current[2]);

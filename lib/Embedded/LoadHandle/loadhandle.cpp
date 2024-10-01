@@ -53,7 +53,10 @@ void LoadHandle::printParams()
 void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
 {
     loadCurrent = abs(loadCurrent);
+
     // ESP_LOGI(_TAG, "current : %d\n", loadCurrent);
+    // ESP_LOGI(_TAG, "voltage : %d\n", loadVoltage);
+    
     if (loadVoltage > _loadOvervoltageDisconnect)
     {
         _bitStatus.flag.overvoltage = 1;
