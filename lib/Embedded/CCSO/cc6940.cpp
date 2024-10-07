@@ -85,8 +85,10 @@ float CC6940::getCurrent(uint16_t adcValue)
     uint16_t adcRange = _maxAdcValue - _minAdcValue; //get span
     uint16_t midPoint = _minAdcValue + (adcRange / 2) + _offsetMidpoint; //get midpoint
     int valueRaw = adcValue - midPoint; //get adc raw value difference from midpoint to reading value
+    // ESP_LOGI(_TAG, "raw analog : %d", valueRaw);
     float voltage = ((float)valueRaw / adcRange) * _maxVoltage; //convert adc value into voltage
     float result = voltage / _resolution; // get current by dividing voltage with resolution
+    // ESP_LOGI(_TAG, "result : %.2f", result);
     return result;
 }
 

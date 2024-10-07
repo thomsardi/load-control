@@ -531,7 +531,7 @@ void setup() {
 
   CC6940Config cc6940Config = cc6940.getPresetConfig(CC6940Type::CURRENT_20A);
   // cc6940Config.minAdcValue = 1024;
-  cc6940Config.offsetMidpoint = -300;  
+  cc6940Config.offsetMidpoint = -281;  
   cc6940.setup(cc6940Config);
 
   /**
@@ -728,12 +728,14 @@ void loop() {
   raw[1] = analogRead(device_pin_t.currentIn2); // current load 2
   raw[2] = analogRead(device_pin_t.currentIn3); // current load 3
 
-  float current[3];
+  int16_t current[3];
   for (size_t i = 0; i < 3; i++)
   {
     // current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
-    current[i] = (cc6940.getCurrent(raw[i])) * 100;
-    ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, (int16_t)current[i]);
+    float resultCurrent = (cc6940.getCurrent(raw[i]));
+    current[i] = resultCurrent * 100;
+    ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, resultCurrent);
+    ESP_LOGI(TAG, "current %d on register modbus = %d", i+1, current[i]);
     // ESP_LOGI(TAG, "current %d = %d", i+1, (int16_t)current[i]);
   }
 

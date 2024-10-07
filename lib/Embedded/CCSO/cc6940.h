@@ -1,6 +1,7 @@
 #ifndef CC6940_H
 #define CC6940_H
 
+#include <Arduino.h>
 #include <stdint.h>
 
 enum CC6940Type : uint8_t {

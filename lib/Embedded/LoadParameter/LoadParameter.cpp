@@ -42,9 +42,9 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_id", 254); // default id
     preferences.putUShort("d_ov_d1", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r1", 580);  // default overcoltage reconnect
-    preferences.putUShort("d_uv_d1", 500);  // default undervoltage disconnect
-    preferences.putUShort("d_uv_r1", 510);  // default undervoltage reconnect
-    preferences.putUShort("d_oc_d1", 1100); // default overcurrent disconnect
+    preferences.putUShort("d_uv_d1", 508);  // default undervoltage disconnect
+    preferences.putUShort("d_uv_r1", 515);  // default undervoltage reconnect
+    preferences.putUShort("d_oc_d1", 1500); // default overcurrent disconnect
     preferences.putUShort("d_oc_dt1", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt1", 4000);    // default overcurrent reconnect time
     preferences.putUShort("d_sc_d1", 2000);    // default short circuit disconnect
@@ -54,9 +54,9 @@ void LoadParameter::createDefault()
     
     preferences.putUShort("d_ov_d2", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r2", 580);  // default overcoltage reconnect
-    preferences.putUShort("d_uv_d2", 500);  // default undervoltage disconnect
-    preferences.putUShort("d_uv_r2", 510);  // default undervoltage reconnect
-    preferences.putUShort("d_oc_d2", 1100); // default overcurrent disconnect
+    preferences.putUShort("d_uv_d2", 508);  // default undervoltage disconnect
+    preferences.putUShort("d_uv_r2", 515);  // default undervoltage reconnect
+    preferences.putUShort("d_oc_d2", 1500); // default overcurrent disconnect
     preferences.putUShort("d_oc_dt2", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt2", 4000);    // default overcurrent reconnect time
     preferences.putUShort("d_sc_d2", 2000);    // default short circuit disconnect
@@ -66,9 +66,9 @@ void LoadParameter::createDefault()
     
     preferences.putUShort("d_ov_d3", 600);  // default overvoltage disconnect
     preferences.putUShort("d_ov_r3", 580);  // default overcoltage reconnect
-    preferences.putUShort("d_uv_d3", 500);  // default undervoltage disconnect
-    preferences.putUShort("d_uv_r3", 510);  // default undervoltage reconnect
-    preferences.putUShort("d_oc_d3", 1100); // default overcurrent disconnect
+    preferences.putUShort("d_uv_d3", 508);  // default undervoltage disconnect
+    preferences.putUShort("d_uv_r3", 515);  // default undervoltage reconnect
+    preferences.putUShort("d_oc_d3", 1500); // default overcurrent disconnect
     preferences.putUShort("d_oc_dt3", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt3", 4000);    // default overcurrent reconnect time
     preferences.putUShort("d_sc_d3", 2000);    // default short circuit disconnect
