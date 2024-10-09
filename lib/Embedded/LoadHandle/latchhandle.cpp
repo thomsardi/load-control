@@ -107,6 +107,15 @@ void LatchHandle::handle(bool action, bool feedback)
         return;
     }
 
+    /**
+     * @brief   prevent multiple update, update will only be executed when the state is false, this indicate that the relay task already completed
+     *          this code block must be included or else the pulse task will be disturbed because of multiple update
+     */
+    if (_pulseOnState || _pulseOffState) 
+    {
+        return;
+    }
+
     if(!_isManual)
     {
         if (action) //if action is HIGH (ON)

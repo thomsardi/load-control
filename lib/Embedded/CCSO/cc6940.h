@@ -11,11 +11,10 @@ enum CC6940Type : uint8_t {
 };
 
 struct CC6940Config {
-    float maxVoltage = 3.3; //3.3V
-    uint16_t maxAdcValue = 4096;    //12 bit resolution 2^12 = 4096
-    uint16_t minAdcValue = 0;   //lowest value (offset)
-    float resolution = 0.132; // 132mV / A, for every 132mV equal to 1 Ampere
-    int16_t offsetMidpoint = 0;
+    uint32_t midPoint = 1650;
+    int32_t offset = 0;
+    float multiplier = 1;
+    uint32_t resolution = 132; // 132mV / A, for every 132mV equal to 1 Ampere
 };
 
 class CC6940
@@ -23,17 +22,17 @@ class CC6940
 private:
     /* data */
     const char* _TAG = "cc6940-class";
-    float _resolution = 0.132;
-    float _maxVoltage = 3.3;
-    uint16_t _maxAdcValue = 4096;
-    uint16_t _minAdcValue = 0;
-    uint16_t _offsetMidpoint = 0;
+    uint32_t _midPoint = 1650;
+    int32_t _offset = 0;
+    float _multiplier = 1;
+    uint32_t _resolution = 132;
 public:
     CC6940();
     void setup(CC6940Config &config);   //setup the parameter for class
     CC6940Config getCurrentConfig();    //get current config of class
     CC6940Config getPresetConfig(CC6940Type type);  //get preset config
     float getCurrent(uint16_t adcValue);    //convert raw adc value into current
+    float getCurrent(uint32_t adcInMillivolts);
     ~CC6940();
 };
 

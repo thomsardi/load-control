@@ -33,7 +33,7 @@
 
 #define BRIDGE_VOLTAGE_DROP 1.4
 #define TRANSISTOR_VOTAGE_DROP 2.0
-#define VOLTAGE_MULTIPLIER  24
+#define VOLTAGE_MULTIPLIER  18.52
 #define CURRENT_GAIN  66  //CC6904SO-20A gain is 63 - 69 mV/A, typical 66 mV/A
 
 const char* TAG = "load-control";
@@ -112,6 +112,7 @@ struct device_pin {
 } device_pin_t;
 
 QueueHandle_t signalQueue = xQueueCreate(12, sizeof(Latch::latch_sync_signal_t)); //create queue
+QueueHandle_t channelSignalQueue[3] = {xQueueCreate(1, sizeof(Latch::latch_sync_signal_t)), xQueueCreate(1, sizeof(Latch::latch_sync_signal_t)), xQueueCreate(1, sizeof(Latch::latch_sync_signal_t))};
 TaskHandle_t relayTaskHandle;
 TaskHandle_t adsTaskHandle;
 
@@ -120,7 +121,7 @@ LoadParameter lp;
 ModbusServerRTU MBserver(2000);
 
 ADS1115 ADS(0x48);
-CC6940 cc6940;
+CC6940 cc6940[3];
 
 LoadModbus::modbusRegister buffRegs;
 LoadModbus::FeedbackStatus feedbackStatus;
@@ -400,20 +401,154 @@ void relayFeedbackLongPressStop3()
   relayConnected[2] = false;
 }
 
-/**
- * callback for latch handle signal
- */
-void onSignal(Latch::latch_sync_signal_t signal)
+void resetLatchHandleOnState(uint8_t signalId)
 {
-  ESP_LOGI(TAG, "on signal cb");
-  if (xQueueSend(signalQueue, &signal, 100) == pdTRUE) //insert signal into queue within 100ms
+  for (size_t i = 0; i < 3; i++) //scan the id to get the related object
+  {
+    uint8_t id = latchHandle[i].getId(); //get the id of the LatchHandle class
+    if (id == signalId) //if is found
+    {
+      // ESP_LOGI(_TAG, "id found = %d", signal.id);
+      latchHandle[i].resetPulseOn(); //reset the flag, call this everytime pulse is end!
+    }
+  }
+}
+
+void resetLatchHandleOffState(uint8_t signalId)
+{
+  for (size_t i = 0; i < 3; i++) //scan the id to get the related object
+  {
+    uint8_t id = latchHandle[i].getId(); //get the id of the LatchHandle class
+    if (id == signalId)
+    {
+      // ESP_LOGI(_TAG, "id found = %d", signal.id);
+      latchHandle[i].resetPulseOff(); //reset the flag, call this everytime pulse is end!
+    }
+  }
+}
+
+/**
+ * callback for latch handle signal 1
+ * 
+ * @brief handler when latchhandle object produce signal
+ * 
+ * @param[in] signal  signal struct
+ */
+void channelOnSignal1(Latch::latch_sync_signal_t signal)
+{
+  ESP_LOGI(TAG, "on signal cb 1");
+
+  if (xQueueSend(channelSignalQueue[0], &signal, 5000) == pdTRUE) //insert signal into queue within 5000ms
   {
     ESP_LOGI(TAG, "successfully sent into queue");
+  }
+  else //if failed to insert signal into queue
+  {
+    if (signal.pulseOn) //if signal to trigger relay on
+    {
+      resetLatchHandleOnState(signal.id); //reset the latch handle on state
+    }
+    if (signal.pulseOff) //if signal to trigger relay off
+    {
+      resetLatchHandleOffState(signal.id); //reset the latch handle off state
+    }
+  }
+}
+
+/**
+ * callback for latch handle signal 2
+ * 
+ * @brief handler when latchhandle object produce signal
+ * 
+ * @param[in] signal  signal struct
+ */
+void channelOnSignal2(Latch::latch_sync_signal_t signal)
+{
+  ESP_LOGI(TAG, "on signal cb 2");
+
+  if (xQueueSend(channelSignalQueue[1], &signal, 5000) == pdTRUE) //insert signal into queue within 5000ms
+  {
+    ESP_LOGI(TAG, "successfully sent into queue");
+  }
+  else //if failed to insert signal into queue
+  {
+    if (signal.pulseOn) //if signal to trigger relay on
+    {
+      resetLatchHandleOnState(signal.id); //reset the latch handle on state
+    }
+    if (signal.pulseOff) //if signal to trigger relay off
+    {
+      resetLatchHandleOffState(signal.id); //reset the latch handle off state
+    }
+  }
+}
+
+/**
+ * callback for latch handle signal 3
+ * 
+ * @brief handler when latchhandle object produce signal
+ * 
+ * @param[in] signal  signal struct
+ */
+void channelOnSignal3(Latch::latch_sync_signal_t signal)
+{
+  ESP_LOGI(TAG, "on signal cb 3");
+  if (xQueueSend(channelSignalQueue[2], &signal, 5000) == pdTRUE) //insert signal into queue within 5000ms
+  {
+    ESP_LOGI(TAG, "successfully sent into queue");
+  }
+  else //if failed to insert signal into queue
+  {
+    ESP_LOGI(TAG, "on signal 3 pdFalse");
+    if (signal.pulseOn) //if signal to trigger relay on
+    {
+      resetLatchHandleOnState(signal.id); //reset the latch handle on state
+    }
+    if (signal.pulseOff) //if signal to trigger relay off
+    {
+      resetLatchHandleOffState(signal.id); //reset the latch handle off state
+    }
+  }
+}
+
+/**
+ * @brief process signal from callback
+ * 
+ * @param[in] signal  signal from callback
+ */
+void processSignal(Latch::latch_sync_signal_t &signal)
+{
+  if (signal.pulseOn) //check if the signal is to trigger relay on
+  {
+    ESP_LOGI(TAG, "pulse on start");
+    signal.pulseOn->set(); //set the pulse
+    {
+      while (signal.pulseOn->isRunning()) //wait pulse to end
+      {
+        delay(1); //do nothing and wait for 1 ms
+      }
+    }
+    ESP_LOGI(TAG, "pulse on finish");
+    resetLatchHandleOnState(signal.id); //reset the state to continue the latch handle class
+  }
+
+  if (signal.pulseOff) //check if the signal is to trigger relay on
+  {
+    ESP_LOGI(TAG, "pulse off start");
+    signal.pulseOff->set(); //set the pulse
+    while (signal.pulseOff->isRunning()) //wait pulse to end
+    {
+      delay(1); //do nothing and wait for 1 ms
+    }
+    ESP_LOGI(TAG, "pulse off stop");
+    resetLatchHandleOffState(signal.id); //reset the state to continue the latch handle class
   }
 }
 
 /**
  * Task to handle relay
+ * 
+ * @brief this task's job is to process the signal produced from latchhandle, the signal passed from callback via xQueueSend
  */
 void relayTask(void *pvParameter)
 {
@@ -421,64 +556,49 @@ void relayTask(void *pvParameter)
   while (1)
   {
     Latch::latch_sync_signal_t signal;
-    if (xQueueReceive(signalQueue, &signal, portMAX_DELAY) == pdTRUE) //wait for signal from latchandle, check void onSignal for further information
+    /**
+     * Get signal from latch callback 1 and process the signal, this will trigger latching relay on channel 1
+     */
+    if (xQueueReceive(channelSignalQueue[0], &signal, 10) == pdTRUE)
     {
-      ESP_LOGI(_TAG, "process signal");
-      if (signal.pulseOn) //check if the object is not NULL since the signal.pulseOn is pointer
-      {
-        ESP_LOGI(_TAG, "pulse on start");
-        signal.pulseOn->set(); //set the pulse
-        while (signal.pulseOn->isRunning()) //wait pulse to end
-        {
-          delay(1);
-        }
-        ESP_LOGI(_TAG, "pulse on finish");
-        for (size_t i = 0; i < 3; i++) //scan the id to get the related object
-        {
-          uint8_t id = latchHandle[i].getId(); //get the id of the LatchHandle class
-          if (id == signal.id) //if is found
-          {
-            // ESP_LOGI(_TAG, "id found = %d", signal.id);
-            latchHandle[i].resetPulseOn(); //reset the flag, call this everytime pulse is end!
-          }
-        }
-      }
-      if (signal.pulseOff) //check if the object is not NULL since the signal.pulseOn is pointer
-      {
-        ESP_LOGI(_TAG, "pulse off start");
-        signal.pulseOff->set(); //set the pulse
-        while (signal.pulseOff->isRunning()) //wait pulse to end
-        {
-          delay(1);
-        }
-        ESP_LOGI(_TAG, "pulse off stop");
-        for (size_t i = 0; i < 3; i++) //scan the id to get the related object
-        {
-          uint8_t id = latchHandle[i].getId(); //get the id of the LatchHandle class
-          if (id == signal.id)
-          {
-            // ESP_LOGI(_TAG, "id found = %d", signal.id);
-            latchHandle[i].resetPulseOff(); //reset the flag, call this everytime pulse is end!
-          }
-        }
-      }
+      processSignal(signal);
+    }
+    /**
+     * Get signal from latch callback 2 and process the signal, this will trigger latching relay on channel 2
+     */
+    if (xQueueReceive(channelSignalQueue[1], &signal, 10) == pdTRUE)
+    {
+      processSignal(signal);
+    }
+
+    /**
+     * Get signal from latch callback 3 and process the signal, this will trigger latching relay on channel 3
+     */
+    if (xQueueReceive(channelSignalQueue[2], &signal, 10) == pdTRUE)
+    {
+      processSignal(signal);
     }
   }
 }
 
+/**
+ * Task to read voltage measurement on ADS1115 
+ */
 void adsTask(void *pvParameter)
 {
   const char* _TAG = "ads-task";
   voltageSense.fill(0);
   while (1)
   {
-    ADS.setGain(0);
-    float f = ADS.toVoltage(VOLTAGE_MULTIPLIER);  //  voltage factor
+    
+    // float f = ADS.toVoltage(VOLTAGE_MULTIPLIER);  //  voltage factor
+    float f = ADS.toVoltage(1);  //  voltage factor
     for (size_t i = 0; i < voltageSense.size(); i++)
     {
       int16_t rawAdc = ADS.readADC(i);
-      voltageSense[i] = (int16_t)rawAdc*f*10;
-      ESP_LOGI(TAG, "Raw Analog%d = %d, Voltage = %d V", i, rawAdc, voltageSense[i]);
+      voltageSense[i] = (int16_t)rawAdc*f*10*VOLTAGE_MULTIPLIER;
+      // ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, voltageSense[i]);
+      // ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, rawAdc*f*VOLTAGE_MULTIPLIER);
     }    
     delay(10);
   }
@@ -529,20 +649,23 @@ void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  CC6940Config cc6940Config = cc6940.getPresetConfig(CC6940Type::CURRENT_20A);
-  // cc6940Config.minAdcValue = 1024;
-  cc6940Config.offsetMidpoint = -281;  
-  cc6940.setup(cc6940Config);
+  CC6940Config cc6940Config = cc6940[0].getPresetConfig(CC6940Type::CURRENT_20A);
+  cc6940Config.offset = -39; //offset -39mV, calibrate when connected load with 7 amps, change this based on your application
+  cc6940[0].setup(cc6940Config);
+  cc6940Config.offset = -37; //offset -39mV, calibrate when connected load with 7 amps, change this based on your application
+  cc6940[1].setup(cc6940Config);
+  cc6940Config.offset = -37; //offset -39mV, calibrate when connected load with 7 amps, change this based on your application
+  cc6940[2].setup(cc6940Config);
 
   /**
    * Pulse setting
    */
-  relay[0].setup(device_pin_t.relayOn1, 100, 400);
-  relay[1].setup(device_pin_t.relayOff1, 100, 400);
-  relay[2].setup(device_pin_t.relayOn2, 100, 400);
-  relay[3].setup(device_pin_t.relayOff2, 100, 400);
-  relay[4].setup(device_pin_t.relayOn3, 100, 400);
-  relay[5].setup(device_pin_t.relayOff3, 100, 400);
+  relay[0].setup(device_pin_t.relayOn1, 75, 25); //set the on time 75ms, and off thime 25ms
+  relay[1].setup(device_pin_t.relayOff1, 75, 25); //set the on time 75ms, and off thime 25ms
+  relay[2].setup(device_pin_t.relayOn2, 75, 25); //set the on time 75ms, and off thime 25ms
+  relay[3].setup(device_pin_t.relayOff2, 75, 25); //set the on time 75ms, and off thime 25ms
+  relay[4].setup(device_pin_t.relayOn3, 75, 25); //set the on time 75ms, and off thime 25ms
+  relay[5].setup(device_pin_t.relayOff3, 75, 25); //set the on time 75ms, and off thime 25ms
 
   /**
    * Feedback setting
@@ -569,27 +692,31 @@ void setup() {
   relayFeedback[2].attachLongPressStop(relayFeedbackLongPressStop3);
 
   Latch::latch_sync_config_t config;
-  config.id = 1;
-  config.retryInterval = 2000;
-  config.maxRetry = 5;
-  config.pulseOn = &relay[0];
-  config.pulseOff = &relay[1];
+  config.id = 1;  //set the id
+  config.retryInterval = 2000;  //set retry interval to 2000ms
+  config.maxRetry = 5;  //set max retry
+  config.pulseOn = &relay[0]; //pass the pulse output object
+  config.pulseOff = &relay[1]; //pass the pulse output object
 
-  latchHandle[0].setup(config);
-  latchHandle[0].onSignal(&onSignal);
-  config.id = 2;
-  config.pulseOn = &relay[2];
-  config.pulseOff = &relay[3];
-  latchHandle[1].setup(config);
-  latchHandle[1].onSignal(&onSignal);
-  config.id = 3;
-  config.pulseOn = &relay[4];
-  config.pulseOff = &relay[5];
-  latchHandle[2].setup(config);
-  latchHandle[2].onSignal(&onSignal);
+  latchHandle[0].setup(config); //pass the config into latchhandle setup
+  latchHandle[0].onSignal(&channelOnSignal1); //register the callback handler when latchhandle produce signal
+  config.id = 2; //set the id
+  config.pulseOn = &relay[2]; //pass the pulse output object
+  config.pulseOff = &relay[3]; //pass the pulse output object
+  latchHandle[1].setup(config); //pass the config into latchhandle setup
+  latchHandle[1].onSignal(&channelOnSignal2); //register the callback handler when latchhandle produce signal
+  config.id = 3; //set the id
+  config.pulseOn = &relay[4]; //pass the pulse output object
+  config.pulseOff = &relay[5]; //pass the pulse output object
+  latchHandle[2].setup(config); //pass the config into latchhandle setup
+  latchHandle[2].onSignal(&channelOnSignal3); //register the callback handler when latchhandle produce signal
 
   Serial.begin(115200);
   lp.begin("load1");
+  /**
+   * this code block is used to clear all the internal setting parameter, uncomment this block and upload into your board
+   * after that, comment again and re-upload, this will ensure that the existing parameter will be deleted
+   */
   // lp.clear();
   // while (1)
   // {
@@ -606,6 +733,7 @@ void setup() {
   // Serial2.begin(115200, SERIAL_8N1, device_pin_t.rx2, device_pin_t.tx2);
   Wire.begin(device_pin_t.sda, device_pin_t.scl);
   ADS.begin();
+  ADS.setGain(0);
   // SPI.begin(device_pin_t.sck, device_pin_t.miso, device_pin_t.mosi, device_pin_t.ss);
 
   MBserver.registerWorker(lp.getId(), READ_COIL, &FC_01);
@@ -723,19 +851,19 @@ void loop() {
     isParameterChanged = false;
   }
 
-  int raw[3];
-  raw[0] = analogRead(device_pin_t.currentIn1); // current load 1
-  raw[1] = analogRead(device_pin_t.currentIn2); // current load 2
-  raw[2] = analogRead(device_pin_t.currentIn3); // current load 3
+  uint32_t raw[3];
+  raw[0] = analogReadMilliVolts(device_pin_t.currentIn1); // current load 1
+  raw[1] = analogReadMilliVolts(device_pin_t.currentIn2); // current load 2
+  raw[2] = analogReadMilliVolts(device_pin_t.currentIn3); // current load 3
 
   int16_t current[3];
   for (size_t i = 0; i < 3; i++)
   {
     // current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
-    float resultCurrent = (cc6940.getCurrent(raw[i]));
+    float resultCurrent = (cc6940[i].getCurrent(raw[i]));
     current[i] = resultCurrent * 100;
-    ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, resultCurrent);
-    ESP_LOGI(TAG, "current %d on register modbus = %d", i+1, current[i]);
+    // ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, resultCurrent);
+    // ESP_LOGI(TAG, "current %d on register modbus = %d", i+1, current[i]);
     // ESP_LOGI(TAG, "current %d = %d", i+1, (int16_t)current[i]);
   }
 
@@ -749,10 +877,10 @@ void loop() {
     relayFeedback[i].tick();
   }
     
-  // for (size_t i = 0; i < voltageSense.size(); i++)
-  // {
-  //   ESP_LOGI(TAG, "Voltage %d = %d", i, voltageSense[i]);
-  // }
+  for (size_t i = 0; i < voltageSense.size(); i++)
+  {
+    // ESP_LOGI(TAG, "Voltage on register modbus %d = %d", i, voltageSense[i]);
+  }
 
   loadHandle[0].loop(voltageSense[3], current[0]);
   loadHandle[1].loop(voltageSense[3], current[1]);
