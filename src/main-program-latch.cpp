@@ -598,7 +598,7 @@ void adsTask(void *pvParameter)
       int16_t rawAdc = ADS.readADC(i);
       voltageSense[i] = (int16_t)rawAdc*f*10*VOLTAGE_MULTIPLIER;
       // ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, voltageSense[i]);
-      // ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, rawAdc*f*VOLTAGE_MULTIPLIER);
+      ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, rawAdc*f*VOLTAGE_MULTIPLIER);
     }    
     delay(10);
   }
@@ -862,7 +862,7 @@ void loop() {
     // current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
     float resultCurrent = (cc6940[i].getCurrent(raw[i]));
     current[i] = resultCurrent * 100;
-    // ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, resultCurrent);
+    ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, resultCurrent);
     // ESP_LOGI(TAG, "current %d on register modbus = %d", i+1, current[i]);
     // ESP_LOGI(TAG, "current %d = %d", i+1, (int16_t)current[i]);
   }
