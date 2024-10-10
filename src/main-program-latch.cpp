@@ -15,8 +15,8 @@
 #include <OneButton.h>
 #include <LoadParameter.h>
 
-#include <flashz-http.hpp>
-#include <flashz.hpp>
+// #include <flashz-http.hpp>
+// #include <flashz.hpp>
 
 #include <ModbusServerRTU.h>
 
@@ -30,11 +30,7 @@
 #define LOG_LOCAL_LEVEL ESP_LOG_INFO
 #include "esp_log.h"
 
-
-#define BRIDGE_VOLTAGE_DROP 1.4
-#define TRANSISTOR_VOTAGE_DROP 2.0
 #define VOLTAGE_MULTIPLIER  18.52
-#define CURRENT_GAIN  66  //CC6904SO-20A gain is 63 - 69 mV/A, typical 66 mV/A
 
 const char* TAG = "load-control";
 
@@ -111,16 +107,20 @@ struct device_pin {
   uint8_t tx2 = 17;
 } device_pin_t;
 
-QueueHandle_t signalQueue = xQueueCreate(12, sizeof(Latch::latch_sync_signal_t)); //create queue
+//Create signal queue for 3 channel, each queue store 1 signal to ensure that the it is executed once
 QueueHandle_t channelSignalQueue[3] = {xQueueCreate(1, sizeof(Latch::latch_sync_signal_t)), xQueueCreate(1, sizeof(Latch::latch_sync_signal_t)), xQueueCreate(1, sizeof(Latch::latch_sync_signal_t))};
+//Task handle structure
 TaskHandle_t relayTaskHandle;
 TaskHandle_t adsTaskHandle;
 
+//Object to handle read and store parameter
 LoadParameter lp;
 
 ModbusServerRTU MBserver(2000);
 
+//Initialize ADS object
 ADS1115 ADS(0x48);
+
 CC6940 cc6940[3];
 
 LoadModbus::modbusRegister buffRegs;
@@ -147,10 +147,12 @@ OneButton relayFeedback[3];
 
 CoilData myCoils(9);
 
+//array to store voltage value from ads
 std::array<int16_t, 4> voltageSense;
 
 bool relayConnected[3];
 
+//flag to detect if new parameter exists
 bool isParameterChanged = false;
 
 // FC_01: act on 0x01 requests - READ_COIL
@@ -369,38 +371,45 @@ ModbusMessage FC10(ModbusMessage request) {
   return response;
 }
 
+//callback when relay state feedback 1 is on
 void relayFeedbackLongPressStart1()
 {
   // ESP_LOGI(TAG, "pressed");
   relayConnected[0] = true;
 }
 
+//callback when relay state feedback 1 is off
 void relayFeedbackLongPressStop1()
 {
   // ESP_LOGI(TAG, "released");
   relayConnected[0] = false;
 }
 
+//callback when relay state feedback 2 is on
 void relayFeedbackLongPressStart2()
 {
   relayConnected[1] = true;
 }
 
+//callback when relay state feedback 2 is off
 void relayFeedbackLongPressStop2()
 {
   relayConnected[1] = false;
 }
 
+//callback when relay state feedback 3 is on
 void relayFeedbackLongPressStart3()
 {
   relayConnected[2] = true;
 }
 
+//callback when relay state feedback 3 is off
 void relayFeedbackLongPressStop3()
 {
   relayConnected[2] = false;
 }
 
+//reset latchandle at line ON, to re-enable latching control again
 void resetLatchHandleOnState(uint8_t signalId)
 {
   for (size_t i = 0; i < 3; i++) //scan the id to get the related object
@@ -414,6 +423,7 @@ void resetLatchHandleOnState(uint8_t signalId)
   }
 }
 
+//reset latchandle at line OFF, to re-enable latching control again
 void resetLatchHandleOffState(uint8_t signalId)
 {
   for (size_t i = 0; i < 3; i++) //scan the id to get the related object
@@ -561,7 +571,7 @@ void relayTask(void *pvParameter)
      */
     if (xQueueReceive(channelSignalQueue[0], &signal, 10) == pdTRUE)
     {
-      processSignal(signal);
+      processSignal(signal); //process received signal
     }
     /**
      * Get signal from latch callback 2 and process the signal, this will trigger latching relay on channel 2
@@ -578,6 +588,7 @@ void relayTask(void *pvParameter)
     {
       processSignal(signal);
     }
+    //no need delay, since the xQueueReceive already has waiting time
   }
 }
 
@@ -597,10 +608,9 @@ void adsTask(void *pvParameter)
     {
       int16_t rawAdc = ADS.readADC(i);
       voltageSense[i] = (int16_t)rawAdc*f*10*VOLTAGE_MULTIPLIER;
-      // ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, voltageSense[i]);
       ESP_LOGI(TAG, "raw voltage analog %d = %d, voltage = %.2f V", i, rawAdc, rawAdc*f*VOLTAGE_MULTIPLIER);
     }    
-    delay(10);
+    delay(10); //delay to give another task time to execute
   }
 }
 
@@ -649,7 +659,7 @@ void setup() {
   // put your setup code here, to run once:
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  CC6940Config cc6940Config = cc6940[0].getPresetConfig(CC6940Type::CURRENT_20A);
+  CC6940Config cc6940Config = cc6940[0].getPresetConfig(CC6940Type::CURRENT_20A); //get preset config for cc6940 20A
   cc6940Config.offset = -39; //offset -39mV, calibrate when connected load with 7 amps, change this based on your application
   cc6940[0].setup(cc6940Config);
   cc6940Config.offset = -37; //offset -39mV, calibrate when connected load with 7 amps, change this based on your application
@@ -659,13 +669,15 @@ void setup() {
 
   /**
    * Pulse setting
+   * 
+   * Set the pulse on and off duration based on your application
    */
-  relay[0].setup(device_pin_t.relayOn1, 75, 25); //set the on time 75ms, and off thime 25ms
-  relay[1].setup(device_pin_t.relayOff1, 75, 25); //set the on time 75ms, and off thime 25ms
-  relay[2].setup(device_pin_t.relayOn2, 75, 25); //set the on time 75ms, and off thime 25ms
-  relay[3].setup(device_pin_t.relayOff2, 75, 25); //set the on time 75ms, and off thime 25ms
-  relay[4].setup(device_pin_t.relayOn3, 75, 25); //set the on time 75ms, and off thime 25ms
-  relay[5].setup(device_pin_t.relayOff3, 75, 25); //set the on time 75ms, and off thime 25ms
+  relay[0].setup(device_pin_t.relayOn1, 75, 10); //set the on time 75ms, and off time 10ms
+  relay[1].setup(device_pin_t.relayOff1, 75, 10); //set the on time 75ms, and off time 10ms
+  relay[2].setup(device_pin_t.relayOn2, 75, 10); //set the on time 75ms, and off time 10ms
+  relay[3].setup(device_pin_t.relayOff2, 75, 10); //set the on time 75ms, and off time 10ms
+  relay[4].setup(device_pin_t.relayOn3, 75, 10); //set the on time 75ms, and off time 10ms
+  relay[5].setup(device_pin_t.relayOff3, 75, 10); //set the on time 75ms, and off time 10ms
 
   /**
    * Feedback setting
@@ -791,6 +803,9 @@ void setup() {
   loadHandle[2].setParams(s);
 }
 
+/**
+ * Update, and print parameter stored in FLASH
+ */
 void updateParameter()
 {
   LoadParamsSetting s;
@@ -839,53 +854,51 @@ void updateParameter()
 
 void loop() {
   // put your main code here, to run repeatedly:
+  // code to scan i2c
   // while(1)
   // {
   //   scanner();
   // }
   systemStatus.flag.run = 1;
 
-  if (isParameterChanged)
+  if (isParameterChanged) //check if parameter is changed, the flag generated during modbus write holding register
   {
     updateParameter();
     isParameterChanged = false;
   }
 
   uint32_t raw[3];
-  raw[0] = analogReadMilliVolts(device_pin_t.currentIn1); // current load 1
-  raw[1] = analogReadMilliVolts(device_pin_t.currentIn2); // current load 2
-  raw[2] = analogReadMilliVolts(device_pin_t.currentIn3); // current load 3
+  raw[0] = analogReadMilliVolts(device_pin_t.currentIn1); // current load 1, reading the value as millivolts
+  raw[1] = analogReadMilliVolts(device_pin_t.currentIn2); // current load 2, reading the value as millivolts
+  raw[2] = analogReadMilliVolts(device_pin_t.currentIn3); // current load 3, reading the value as millivolts
 
   int16_t current[3];
   for (size_t i = 0; i < 3; i++)
   {
-    // current[i] = (loadHandle[i].toCurrent(raw[i])) * 100;
     float resultCurrent = (cc6940[i].getCurrent(raw[i]));
     current[i] = resultCurrent * 100;
     ESP_LOGI(TAG, "raw current analog value %d = %d, current %d = %.2f", i+1, raw[i], i+1, resultCurrent);
-    // ESP_LOGI(TAG, "current %d on register modbus = %d", i+1, current[i]);
-    // ESP_LOGI(TAG, "current %d = %d", i+1, (int16_t)current[i]);
   }
 
   for (size_t i = 0; i < 6; i++)
   {
-    relay[i].tick();
+    relay[i].tick(); //tick the pulseoutput object
   }
 
   for (size_t i = 0; i < 3; i++)
   {
-    relayFeedback[i].tick();
+    relayFeedback[i].tick(); //tick the onebutton object
   }
     
-  for (size_t i = 0; i < voltageSense.size(); i++)
-  {
+  // for (size_t i = 0; i < voltageSense.size(); i++)
+  // {
     // ESP_LOGI(TAG, "Voltage on register modbus %d = %d", i, voltageSense[i]);
-  }
+  // }
 
-  loadHandle[0].loop(voltageSense[3], current[0]);
+  loadHandle[0].loop(voltageSense[3], current[0]); //loop the loadhandle object
   loadHandle[1].loop(voltageSense[3], current[1]);
   loadHandle[2].loop(voltageSense[3], current[2]);
-  latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]);
+  latchHandle[0].handle(loadHandle[0].getAction(), relayConnected[0]); //handle the latchhandle object
   latchHandle[1].handle(loadHandle[1].getAction(), relayConnected[1]);
   latchHandle[2].handle(loadHandle[2].getAction(), relayConnected[2]);
 
@@ -906,7 +919,7 @@ void loop() {
   // ESP_LOGI(TAG, "undervoltage flag : %d\n", loadHandle[0].isUndervoltage());
   // ESP_LOGI(TAG, "overcurrent flag : %d\n", loadHandle[0].isOvercurrent());
 
-  if (myCoils[6])
+  if (myCoils[6]) //check for manual coil
   {
     // ESP_LOGI(TAG, "manual");
     for (size_t i = 0; i < 3; i++)
@@ -968,18 +981,18 @@ void loop() {
   buffRegs.assignFeedbackStatus(feedbackStatus.value);
   buffRegs.assignSystemStatus(systemStatus.value);
 
-  if (myCoils[8])
+  if (myCoils[8]) //check for factory reset coil
   {
     ESP_LOGI(TAG, "factory reset");
     myCoils.set(8, false);
     lp.reset();
   }
   
-  if (myCoils[7])
+  if (myCoils[7]) //check for restart coil
   {
     ESP_LOGI(TAG, "restart");
     myCoils.set(7, false);
     ESP.restart();
   }
-  delay(5);
+  delay(1); //delay to give another task chance to execute
 }

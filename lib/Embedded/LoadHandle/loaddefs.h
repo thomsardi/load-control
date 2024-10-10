@@ -5,6 +5,13 @@
 #include "array"
 
 namespace LoadModbus {
+    /**
+     * Bitfield system status
+     * 
+     * bit 0 : run status
+     * bit 1 : mode status
+     * bit 2 - 15 : unused
+     */
     union SystemStatus {
         struct bitField {
             uint16_t run : 1;
@@ -14,6 +21,23 @@ namespace LoadModbus {
         uint16_t value;
     };
 
+    /**
+     * Bitfield feedback status
+     * 
+     * bit 0 : mcb1 status
+     * bit 1 : mcb2 status
+     * bit 2 : mcb3 status
+     * bit 3 : relay feedback 1 status
+     * bit 4 : relay feedback 2 status
+     * bit 5 : relay feedback 3 status
+     * bit 6 : relay 1 ON failed
+     * bit 7 : relay 1 OFF failed
+     * bit 8 : relay 2 ON failed
+     * bit 9 : relay 2 OFF failed
+     * bit 10 : relay 3 ON failed
+     * bit 11 : relay 3 OFF failed
+     * bit 12 - 15 : unused
+     */
     union FeedbackStatus {
         struct bitField {
             uint16_t mcb1 : 1;
@@ -35,75 +59,129 @@ namespace LoadModbus {
     
     struct modbusRegister
     {
-        std::array<uint16_t, 12> inputRegister;
-        std::array<uint16_t, 35> holdingRegister;
+        std::array<uint16_t, 12> inputRegister; //reserve 12 input register
+        std::array<uint16_t, 35> holdingRegister; //reserve 35 holding register
 
         modbusRegister()
         {
-            inputRegister.fill(0);
-            holdingRegister.fill(0);
+            inputRegister.fill(0); //fill input register with zero value
+            holdingRegister.fill(0); //fill holding register with zero value
         }
 
+        /**
+         * assign load voltage 1 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignLoadVoltage1(int16_t value)
         {
             inputRegister[0] = value;
         }
 
+        /**
+         * assign load voltage 2 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignLoadVoltage2(int16_t value)
         {
             inputRegister[1] = value;
         }
 
+        /**
+         * assign load voltage 3 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignLoadVoltage3(int16_t value)
         {
             inputRegister[2] = value;
         }
 
+        /**
+         * assign system voltage register
+         * @param[in]   value   value to be assigned into
+         */
         void assignSystemVoltage(int16_t value)
         {
             inputRegister[3] = value;
         }
 
+        /**
+         * assign load current 1 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignLoadCurrent1(int16_t value)
         {
             inputRegister[4] = value;
         }
 
+        /**
+         * assign load current 2 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignLoadCurrent2(int16_t value)
         {
             inputRegister[5] = value;
         }
 
+        /**
+         * assign load current 3 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignLoadCurrent3(int16_t value)
         {
             inputRegister[6] = value;
         }
 
+        /**
+         * assign flag 1 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignFlag1(uint16_t value)
         {
             inputRegister[7] = value;
         }
 
+        /**
+         * assign flag 2 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignFlag2(uint16_t value)
         {
             inputRegister[8] = value;
         }
 
+        /**
+         * assign flag 3 register
+         * @param[in]   value   value to be assigned into
+         */
         void assignFlag3(uint16_t value)
         {
             inputRegister[9] = value;
         }
 
+        /**
+         * assign feedback status register
+         * @param[in]   value   value to be assigned into
+         */
         void assignFeedbackStatus(uint16_t value)
         {
             inputRegister[10] = value;
         }
 
+        /**
+         * assign system status register
+         * @param[in]   value   value to be assigned into
+         */
         void assignSystemStatus(uint16_t value)
         {
             inputRegister[11] = value;
         }
 
+        /**
+         * assign holding register
+         * @param[in]   regs    array of 35 element
+         * 
+         * @return  number of written register
+         */
         size_t assignHoldingRegister(std::array<uint16_t, 35> &regs)
         {
             size_t regsNumber = 0;
@@ -141,7 +219,7 @@ struct LoadParamsSetting {
 };
 
 /**
- * bitfield
+ * bitfield flag status
  * 
  * format for bitfield
  * 
@@ -186,16 +264,15 @@ class LoadHandle {
 
     public :
         LoadHandle();
-        void setParams(const LoadParamsSetting &load_params_t);
-        void printParams();
-        void loop(int16_t loadVoltage, int16_t loadCurrent);
-        bool getAction();
-        bool isOvervoltage();
-        bool isUndervoltage();
-        bool isOvercurrent();
-        bool isShortCircuit();
-        float toCurrent(int raw, int gain = 66, int maxRaw = 4096, int minRaw = 0, int midPoint = 2048);
-        uint16_t getStatus();
+        void setParams(const LoadParamsSetting &load_params_t); //set object parameter
+        void printParams(); //print parameter stored
+        void loop(int16_t loadVoltage, int16_t loadCurrent); //main loop
+        bool getAction(); //get action
+        bool isOvervoltage(); //get overvoltage flag
+        bool isUndervoltage(); //get undervoltage flag
+        bool isOvercurrent(); //get overcurrent flag
+        bool isShortCircuit(); //get short circuit flag
+        uint16_t getStatus(); //get all flag status as uint16
         ~LoadHandle();
 };
 

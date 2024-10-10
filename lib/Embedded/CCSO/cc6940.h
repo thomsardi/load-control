@@ -10,6 +10,16 @@ enum CC6940Type : uint8_t {
     CURRENT_30A
 };
 
+/**
+ * Structure of CC6940 config
+ * 
+ * default set into CC6940 10A type
+ * 
+ * midpoint : middle point of voltage
+ * offset : offset drift between midpoint to actual value when 0 amp applied
+ * multiplier : multiplier of value
+ * resolution : resolution of CC6940 Type 10A(132mV/A), 20A(66mV/A), 30(44mV/A)
+ */
 struct CC6940Config {
     uint32_t midPoint = 1650;
     int32_t offset = 0;
@@ -31,8 +41,7 @@ public:
     void setup(CC6940Config &config);   //setup the parameter for class
     CC6940Config getCurrentConfig();    //get current config of class
     CC6940Config getPresetConfig(CC6940Type type);  //get preset config
-    float getCurrent(uint16_t adcValue);    //convert raw adc value into current
-    float getCurrent(uint32_t adcInMillivolts);
+    float getCurrent(uint32_t adcInMillivolts); //get current in A
     ~CC6940();
 };
 

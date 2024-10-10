@@ -48,7 +48,7 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_oc_dt1", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt1", 4000);    // default overcurrent reconnect time
     preferences.putUShort("d_sc_d1", 2000);    // default short circuit disconnect
-    preferences.putUShort("d_sc_dt1", 20);    // default short circuit detection time
+    preferences.putUShort("d_sc_dt1", 10);    // default short circuit detection time
     preferences.putUShort("d_sc_rt1", 4000);    // default short circuit reconnect time
     preferences.putUShort("d_om_1", 0);    // default output mode
     
@@ -60,7 +60,7 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_oc_dt2", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt2", 4000);    // default overcurrent reconnect time
     preferences.putUShort("d_sc_d2", 2000);    // default short circuit disconnect
-    preferences.putUShort("d_sc_dt2", 20);    // default short circuit detection time
+    preferences.putUShort("d_sc_dt2", 10);    // default short circuit detection time
     preferences.putUShort("d_sc_rt2", 4000);    // default short circuit reconnect time
     preferences.putUShort("d_om_2", 0);    // default output mode
     
@@ -72,7 +72,7 @@ void LoadParameter::createDefault()
     preferences.putUShort("d_oc_dt3", 500);    // default overcurrent detection time
     preferences.putUShort("d_oc_rt3", 4000);    // default overcurrent reconnect time
     preferences.putUShort("d_sc_d3", 2000);    // default short circuit disconnect
-    preferences.putUShort("d_sc_dt3", 20);    // default short circuit detection time
+    preferences.putUShort("d_sc_dt3", 10);    // default short circuit detection time
     preferences.putUShort("d_sc_rt3", 4000);    // default short circuit reconnect time
     preferences.putUShort("d_om_3", 0);    // default output mode
     preferences.putBool("init_flg", true);

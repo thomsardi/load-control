@@ -30,20 +30,20 @@ CC6940Config CC6940::getPresetConfig(CC6940Type type)
     switch (type)
     {
     case CC6940Type::CURRENT_10A :
-        config.midPoint = 1650;
-        config.resolution = 132;
-        config.offset = 0;
-        config.multiplier = 1;
+        config.midPoint = 1650; //1650mV as middle point
+        config.resolution = 132; //132mV/A
+        config.offset = 0; //0 mV offset between middle point
+        config.multiplier = 1; // 1x multiplier
         break;
     case CC6940Type::CURRENT_20A :
         config.midPoint = 1650;
-        config.resolution = 66;
+        config.resolution = 66; //66mV/A
         config.offset = 0;
         config.multiplier = 1;
         break;
     case CC6940Type::CURRENT_30A :
         config.midPoint = 1650;
-        config.resolution = 44;
+        config.resolution = 44; //44mV/A
         config.offset = 0;
         config.multiplier = 1;
         break;

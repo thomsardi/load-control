@@ -28,6 +28,9 @@ void LoadHandle::setParams(const LoadParamsSetting &load_params_t)
     _isActiveLow = load_params_t.activeLow;
 }
 
+/**
+ * print parameter stored
+ */
 void LoadHandle::printParams()
 {
     ESP_LOGI(_TAG, "overvoltage disconnect : %d\n", _loadOvervoltageDisconnect);
@@ -52,7 +55,7 @@ void LoadHandle::printParams()
  */
 void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
 {
-    loadCurrent = abs(loadCurrent);
+    loadCurrent = abs(loadCurrent); //make current value as absolute (always positive)
 
     // ESP_LOGI(_TAG, "current : %d\n", loadCurrent);
     // ESP_LOGI(_TAG, "voltage : %d\n", loadVoltage);
@@ -80,13 +83,15 @@ void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
     /**
      * Short circuit detection
      */
-    if (loadCurrent > _loadShortCircuitDisconnect && !_bitStatus.flag.shortCircuit)
+    if (loadCurrent > _loadShortCircuitDisconnect && !_bitStatus.flag.shortCircuit) //check if current is above short circuit parameter and flag is not yet set(first time occured)
     {
-        if (millis() - _lastScCheck > _loadShortCircuitDetectionTime)
+        if (millis() - _lastScCheck > _loadShortCircuitDetectionTime) //check the duration of short circuit, if it is above parameter
         {
-            _bitStatus.flag.shortCircuit = 1;
-            _bitStatus.flag.overcurrent = 0;
-            _lastScCheck = millis();
+            // ESP_LOGI(_TAG, "===== short circuit detected =====");
+            _bitStatus.flag.shortCircuit = 1; //set short circuit flag to true
+            _bitStatus.flag.overcurrent = 0; //reset overcurrent flag
+            _lastScCheck = millis(); //update time of last short circuit check time
+            _lastOcCheck = millis(); //update time of last overcurrent check time, to prevent overcurrent detection
         }
     }
     else
@@ -94,13 +99,14 @@ void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
         _lastScCheck = millis();
     }
 
-    if (_bitStatus.flag.shortCircuit)
+    if (_bitStatus.flag.shortCircuit) //if it is short circuit
     {
-        if (millis() - _lastScReconnect > _loadShortCircuitReconnectTime)
+        if (millis() - _lastScReconnect > _loadShortCircuitReconnectTime) //check for reconnect time based on parameter
         {
-            _bitStatus.flag.shortCircuit = 0;
-            _bitStatus.flag.overcurrent = 0;
-            _lastScReconnect = millis();
+            _bitStatus.flag.shortCircuit = 0; //reset short circuit flag
+            _bitStatus.flag.overcurrent = 0; //reset overcurrent flag
+            _lastScReconnect = millis(); //update time of last short circuit reconnect time
+            _lastOcCheck = millis(); //update time of last overcurrent check, to prevent overcurrent detection
         }
     }
     else
@@ -111,12 +117,13 @@ void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
     /**
      * Overcurrent detection
      */
-    if (loadCurrent > _loadOvercurrentDisconnect && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
+    if (loadCurrent > _loadOvercurrentDisconnect && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit) //check if current is above overcurrent parameter and flag is not yet set(first time occured)
     {
-        if (millis() - _lastOcCheck > _loadOcDetectionTime)
+        if (millis() - _lastOcCheck > _loadOcDetectionTime) //check the duration of overcurrent, if it is above parameter
         {
-            _bitStatus.flag.overcurrent = 1;
-            _lastOcCheck = millis();
+            // ESP_LOGI(_TAG, "===== overcurrent detected =====");
+            _bitStatus.flag.overcurrent = 1; //set short circuit flag to true
+            _lastOcCheck = millis(); //update time of last overcurrent check
         }
     }
     else
@@ -124,12 +131,12 @@ void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
         _lastOcCheck = millis();
     }
 
-    if (_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
+    if (_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit) //check if the flag is overcurrent and not short circuit
     {
-        if (millis() - _lastOcReconnect > _loadOcReconnectTime)
+        if (millis() - _lastOcReconnect > _loadOcReconnectTime) //check for reconnect time based on parameter
         {
-            _bitStatus.flag.overcurrent = 0;
-            _lastOcReconnect = millis();
+            _bitStatus.flag.overcurrent = 0; //reset overcurrent flag
+            _lastOcReconnect = millis(); //update time of last overcurrent reconnect time
         }
     }
     else
@@ -137,13 +144,13 @@ void LoadHandle::loop(int16_t loadVoltage, int16_t loadCurrent)
         _lastOcReconnect = millis();
     }
 
-    if (!_bitStatus.flag.overvoltage && !_bitStatus.flag.undervoltage && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit)
+    if (!_bitStatus.flag.overvoltage && !_bitStatus.flag.undervoltage && !_bitStatus.flag.overcurrent && !_bitStatus.flag.shortCircuit) //check if no flag is enabled
     {
-        _state = !_isActiveLow;
+        _state = !_isActiveLow; //return active, if activelow is enabled, this will return false otherwise return true
     }
     else
     {
-        _state = _isActiveLow;
+        _state = _isActiveLow; //return deactivated, if activelow is enabled, this will retur true otherwise return false
     }
 }
 
@@ -198,29 +205,9 @@ bool LoadHandle::isShortCircuit()
 }
 
 /**
- * convert adc raw value to current
- * 
- * @param[in] raw raw value of adc
- * @param[in] gain  gain in mV/A
- * @param[in] maxRaw    maximum value of adc
- * @param[in] minRaw    minimum value of adc
- * @param[in] midPoint    middlepoint value of adc
- * 
- * @return  current value in float
- */
-float LoadHandle::toCurrent(int raw, int gain, int maxRaw, int minRaw, int midPoint)
-{
-    float resolution = 3300; 
-    resolution /= (maxRaw - minRaw); // for 1 adc value equal to how many millivolt
-    float milliVolt = (raw - minRaw - midPoint) * resolution; // multiply the adc value with resolution to get actual millivolt
-    float current = milliVolt / gain;   // divide the millivolt with gain to get current
-    return current;
-}
-
-/**
  * Get status flag in uint16
  * 
- * @return  all flag status bit packed in uint16
+ * @return  all flag status bit packed as uint16
  */
 uint16_t LoadHandle::getStatus()
 {
