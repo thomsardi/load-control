@@ -859,6 +859,7 @@ void loop() {
   // {
   //   scanner();
   // }
+
   systemStatus.flag.run = 1;
 
   if (isParameterChanged) //check if parameter is changed, the flag generated during modbus write holding register

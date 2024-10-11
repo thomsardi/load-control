@@ -15,14 +15,14 @@ class PulseOutput {
         bool _isSet = false;
     public :
         PulseOutput();
-        void setup(uint8_t pin, int pulseOnDuration = 100, int pulseOffDuration = 100, bool activeLow = false);
-        void set();
-        void reset();
-        void changePulseOnDuration(int duration);
-        void changePulseOffDuration(int duration);
-        void changeActiveState(bool activeLow = false);
-        void tick();
-        bool isRunning();
+        void setup(uint8_t pin, int pulseOnDuration = 100, int pulseOffDuration = 100, bool activeLow = false); //setup object
+        void set(); //set the pin
+        void reset(); //reset the pin
+        void changePulseOnDuration(int duration); //change on duration
+        void changePulseOffDuration(int duration); //change off duration
+        void changeActiveState(bool activeLow = false); //change mode
+        void tick(); //main loop
+        bool isRunning(); //check for running state
 };
 
 #endif

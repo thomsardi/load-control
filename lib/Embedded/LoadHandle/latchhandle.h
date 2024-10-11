@@ -9,13 +9,13 @@ namespace Latch {
      * config struct for async latch
      */
     struct latch_async_config_t {
-        int pinOn = -1;
-        int pinOff = -1;
-        int onDuration = 100;
-        int offDuration = 100;
-        bool activeLow = false;
-        int retryInterval = 2000;
-        int maxRetry = 5;
+        int pinOn = -1; //pin on
+        int pinOff = -1; //pin off
+        int onDuration = 100; //ON duration 100ms
+        int offDuration = 100; //OFF duration 100ms
+        bool activeLow = false; //mode
+        int retryInterval = 2000; //retry interval when failed to trigger the relay
+        int maxRetry = 5; //maximum retry when no feedback received
     };
 
     /**
@@ -24,10 +24,10 @@ namespace Latch {
     struct latch_sync_config_t
     {
         uint8_t id = 0; //id of the class
-        int retryInterval = 2000;
-        int maxRetry = 5;
-        PulseOutput *pulseOn = NULL;
-        PulseOutput *pulseOff = NULL;
+        int retryInterval = 2000; //retry interval when failed to trigger the relay
+        int maxRetry = 5; //maximum retry when no feedback received
+        PulseOutput *pulseOn = NULL; //pointer to PulseOutput data type
+        PulseOutput *pulseOff = NULL; //pointer to PulseOutput data type
     };
     
     /**

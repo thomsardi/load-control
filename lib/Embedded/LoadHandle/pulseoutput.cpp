@@ -114,7 +114,7 @@ void PulseOutput::tick()
 }
 
 /**
- * Check for running status, will return true if is in middle of process
+ * Check for running status, will return true if it is in middle of process
  * 
  * @return  status of task
  */
